@@ -1,7 +1,7 @@
 ---
 name: pptx-korean-formatting
 description: "Korean-language PowerPoint (.pptx) generation rules that must be applied ON TOP OF the standard pptx/pptxgenjs/python-pptx workflow whenever a slide deck contains Korean text. Trigger this whenever creating or editing a .pptx, .potx, or html2pptx-based deck that includes any Korean (한글) content — even if the user's request doesn't explicitly mention 'Korean' or 'lang'. This covers: (1) forcing Korean language tags (lang=\"ko-KR\" / msoLanguageIDKorean) on every text run/paragraph so PowerPoint's Korean word-wrap engine is used instead of the English one, and (2) pushing font/color formatting up to paragraph, layout, or master level instead of hardcoding it per-run, so downstream edits (e.g., bulk color changes in PowerPoint) aren't blocked. Always consult this skill together with the main pptx skill for any Korean-language deck."
-license: MIT
+license: CC0-1.0
 ---
 
 # PPTX 한국어 생성 규칙 (Korean PPTX Generation Rules)

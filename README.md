@@ -25,4 +25,4 @@ Claude Code will automatically pick it up alongside the built-in `pptx` skill wh
 
 ## License
 
-[MIT](LICENSE)
+[CC0 1.0 Universal](LICENSE) — public domain, no attribution required.
