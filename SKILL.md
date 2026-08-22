@@ -6,7 +6,7 @@ license: CC0-1.0
 
 # PPTX 한국어 생성 규칙 (Korean PPTX Generation Rules)
 
-> 이 파일은 Claude Code의 [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) 형식으로 패키징된 버전이다. Codex, Antigravity, Cursor 등 다른 에이전트에서 쓰려면 프론트매터가 없는 범용 버전인 [AGENTS.md](AGENTS.md)를 사용한다. 두 파일의 규칙 내용은 동일하다.
+> 이 파일은 [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) 형식으로 패키징된 버전이다. Claude Code와 Google Antigravity는 이 형식(스킬 폴더 + `SKILL.md`)을 그대로 지원한다. Codex, Cursor 등 이 형식을 지원하지 않는 에이전트에서 쓰려면 프론트매터가 없는 범용 버전인 [AGENTS.md](AGENTS.md)를 사용한다. 두 파일의 규칙 내용은 동일하다.
 
 이 스킬은 표준 `pptx` 스킬(또는 `python-pptx`, `pptxgenjs`, `html2pptx` 기반 스크립트)과 **함께** 적용하는 보조 규칙이다. 슬라이드에 한글이 포함되는 모든 생성/편집 작업에서 아래 두 가지를 반드시 지킨다.
 

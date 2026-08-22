@@ -18,7 +18,7 @@ PowerPoint applies word-wrap rules based on each run/paragraph's language tag. W
 | File | Format | Use with |
 |---|---|---|
 | [AGENTS.md](AGENTS.md) | Plain markdown, no frontmatter | Any agent — OpenAI Codex, Google Antigravity, Cursor, Windsurf, or manually pasted into a system prompt |
-| [SKILL.md](SKILL.md) | Claude [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) format (YAML frontmatter + auto-trigger description) | Claude Code, or any tool that supports the Agent Skills spec |
+| [SKILL.md](SKILL.md) | [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) format (YAML frontmatter + auto-trigger description) | Claude Code, Google Antigravity, or any tool that supports the Agent Skills spec |
 
 The rule content is identical in both — pick the file that matches how your agent loads project instructions.
 
@@ -35,13 +35,18 @@ git clone https://github.com/sshin90/pptx-korean-formatting.git
 cat pptx-korean-formatting/AGENTS.md >> AGENTS.md   # merge into your project's AGENTS.md
 ```
 
-**Google Antigravity** (Gemini-based global rules directory):
-```bash
-mkdir -p ~/.gemini/config/rules
-curl -o ~/.gemini/config/rules/pptx-korean-formatting.md \
-  https://raw.githubusercontent.com/sshin90/pptx-korean-formatting/master/AGENTS.md
-```
-This applies globally across all Antigravity workspaces, not just one project.
+**Google Antigravity**: supports the same Agent Skills format as Claude Code (a skill folder with `SKILL.md`), plus a simpler global rules directory. Both give similar results — pick one.
+
+- As a skill (mirrors Claude Code):
+  ```bash
+  git clone https://github.com/sshin90/pptx-korean-formatting.git ~/.gemini/config/skills/pptx-korean-formatting
+  ```
+- As a global rule (plain markdown, applies across all workspaces):
+  ```bash
+  mkdir -p ~/.gemini/config/rules
+  curl -o ~/.gemini/config/rules/pptx-korean-formatting.md \
+    https://raw.githubusercontent.com/sshin90/pptx-korean-formatting/master/AGENTS.md
+  ```
 
 **Cursor, Windsurf, or other agentic IDEs**: these tools each have their own convention for project rules (`.cursorrules` / `.cursor/rules/`, `.windsurfrules`, workspace guidelines, etc.). Copy the contents of [AGENTS.md](AGENTS.md) into whichever rules file your tool reads — check its docs for the exact filename/location.
 
@@ -71,7 +76,7 @@ PowerPoint는 각 텍스트 런/문단에 지정된 언어 속성에 따라 줄�
 | 파일 | 형식 | 사용 대상 |
 |---|---|---|
 | [AGENTS.md](AGENTS.md) | 프론트매터 없는 순수 마크다운 | OpenAI Codex, Google Antigravity, Cursor, Windsurf 등 모든 에이전트, 또는 시스템 프롬프트에 직접 붙여넣기 |
-| [SKILL.md](SKILL.md) | Claude [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) 형식 (YAML 프론트매터 + 자동 트리거 설명 포함) | Claude Code, 또는 Agent Skills 스펙을 지원하는 도구 |
+| [SKILL.md](SKILL.md) | [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) 형식 (YAML 프론트매터 + 자동 트리거 설명 포함) | Claude Code, Google Antigravity, 또는 Agent Skills 스펙을 지원하는 도구 |
 
 두 파일의 규칙 내용은 동일합니다. 사용 중인 에이전트가 프로젝트 지침을 읽는 방식에 맞는 파일을 고르면 됩니다.
 
@@ -88,13 +93,18 @@ git clone https://github.com/sshin90/pptx-korean-formatting.git
 cat pptx-korean-formatting/AGENTS.md >> AGENTS.md   # 프로젝트의 AGENTS.md에 병합
 ```
 
-**Google Antigravity** (Gemini 기반 전역 규칙 디렉터리):
-```bash
-mkdir -p ~/.gemini/config/rules
-curl -o ~/.gemini/config/rules/pptx-korean-formatting.md \
-  https://raw.githubusercontent.com/sshin90/pptx-korean-formatting/master/AGENTS.md
-```
-이 디렉터리는 특정 프로젝트가 아니라 Antigravity의 모든 워크스페이스에 전역으로 적용됩니다.
+**Google Antigravity**: Claude Code와 동일한 Agent Skills 형식(`SKILL.md`가 담긴 스킬 폴더)을 그대로 지원하며, 이와 별개로 더 단순한 전역 규칙 디렉터리도 지원합니다. 두 방식 모두 결과는 비슷하니 편한 쪽을 쓰면 됩니다.
+
+- 스킬로 설치 (Claude Code 방식과 동일):
+  ```bash
+  git clone https://github.com/sshin90/pptx-korean-formatting.git ~/.gemini/config/skills/pptx-korean-formatting
+  ```
+- 전역 규칙으로 설치 (프론트매터 없는 순수 마크다운, 모든 워크스페이스에 적용):
+  ```bash
+  mkdir -p ~/.gemini/config/rules
+  curl -o ~/.gemini/config/rules/pptx-korean-formatting.md \
+    https://raw.githubusercontent.com/sshin90/pptx-korean-formatting/master/AGENTS.md
+  ```
 
 **Cursor, Windsurf 등 다른 에이전틱 IDE**: 각 도구마다 프로젝트 규칙을 지정하는 자체 방식(`.cursorrules` / `.cursor/rules/`, `.windsurfrules`, 워크스페이스 가이드라인 등)이 있습니다. 사용 중인 도구의 문서에서 정확한 파일명/위치를 확인한 뒤, [AGENTS.md](AGENTS.md)의 내용을 그 파일에 복사해 넣으세요.
 
