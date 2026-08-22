@@ -1,6 +1,6 @@
 # PPTX 한국어 생성 규칙 (Korean PPTX Generation Rules)
 
-> 이 문서는 특정 도구에 종속되지 않는 범용 규칙 파일이다. `python-pptx`, `pptxgenjs`, `html2pptx` 또는 직접 XML 편집으로 PowerPoint(.pptx/.potx)를 생성·수정하는 **모든 AI 코딩 에이전트**(Claude Code, OpenAI Codex, Google Antigravity, Cursor, Windsurf 등)가 한글이 포함된 슬라이드를 다룰 때 적용해야 한다. 각 에이전트에 연결하는 방법은 [README](README.md#설치--연결-방법)를 참고한다.
+> 이 문서는 특정 도구에 종속되지 않는 범용 규칙 파일이다. `python-pptx`, `pptxgenjs`, `html2pptx` 또는 직접 XML 편집으로 PowerPoint(.pptx/.potx)를 생성·수정하는 **모든 AI 코딩 에이전트**(Claude Code, OpenAI Codex, Google Antigravity, Cursor, Windsurf 등)가 한글이 포함된 슬라이드를 다룰 때 적용해야 한다. 각 에이전트에 연결하는 방법은 [README](README.md#설치--연결-방법)를 참고한다 (예: Antigravity는 이 파일을 `~/.gemini/config/rules/`에 복사).
 
 슬라이드에 한글이 포함되는 모든 생성/편집 작업에서 아래 두 가지를 반드시 지킨다.
 

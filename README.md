@@ -2,7 +2,7 @@
 
 *[한국어 설명은 아래를 참고하세요](#한국어)*
 
-Korean-language formatting rules for AI coding agents that generate PowerPoint (`.pptx`/`.potx`) files with `python-pptx`, `pptxgenjs`, `html2pptx`, or direct XML editing. Works with **any agent** that can read a project-level instructions file — Claude Code, OpenAI Codex, Google Antigravity, Cursor, Windsurf, and others.
+Korean-language formatting rules for AI coding agents that generate PowerPoint (`.pptx`/`.potx`) files with `python-pptx`, `pptxgenjs`, `html2pptx`, or direct XML editing. Works with **any agent** that can read a project-level or global instructions file — Claude Code, OpenAI Codex, Google Antigravity, Cursor, Windsurf, and others.
 
 ## Why
 
@@ -35,7 +35,15 @@ git clone https://github.com/sshin90/pptx-korean-formatting.git
 cat pptx-korean-formatting/AGENTS.md >> AGENTS.md   # merge into your project's AGENTS.md
 ```
 
-**Google Antigravity, Cursor, Windsurf, or other agentic IDEs**: these tools each have their own convention for project rules (custom instructions, `.cursorrules`, `.windsurfrules`, workspace guidelines, etc.). Copy the contents of [AGENTS.md](AGENTS.md) into whichever rules file your tool reads — check its docs for the exact filename/location.
+**Google Antigravity** (Gemini-based global rules directory):
+```bash
+mkdir -p ~/.gemini/config/rules
+curl -o ~/.gemini/config/rules/pptx-korean-formatting.md \
+  https://raw.githubusercontent.com/sshin90/pptx-korean-formatting/master/AGENTS.md
+```
+This applies globally across all Antigravity workspaces, not just one project.
+
+**Cursor, Windsurf, or other agentic IDEs**: these tools each have their own convention for project rules (`.cursorrules` / `.cursor/rules/`, `.windsurfrules`, workspace guidelines, etc.). Copy the contents of [AGENTS.md](AGENTS.md) into whichever rules file your tool reads — check its docs for the exact filename/location.
 
 **Any other agent**: paste [AGENTS.md](AGENTS.md)'s contents into the system prompt, or tell the agent to read this file before generating a Korean-language deck.
 
@@ -47,7 +55,7 @@ cat pptx-korean-formatting/AGENTS.md >> AGENTS.md   # merge into your project's 
 
 ## 한국어
 
-`python-pptx`, `pptxgenjs`, `html2pptx`, 또는 직접 XML 편집으로 PowerPoint(.pptx/.potx)를 생성하는 **모든 AI 코딩 에이전트**를 위한 한국어 서식 규칙입니다. 프로젝트 단위 지침 파일을 읽을 수 있는 에이전트라면 어디서든 사용할 수 있습니다 — Claude Code, OpenAI Codex, Google Antigravity, Cursor, Windsurf 등.
+`python-pptx`, `pptxgenjs`, `html2pptx`, 또는 직접 XML 편집으로 PowerPoint(.pptx/.potx)를 생성하는 **모든 AI 코딩 에이전트**를 위한 한국어 서식 규칙입니다. 프로젝트 단위 또는 전역 지침 파일을 읽을 수 있는 에이전트라면 어디서든 사용할 수 있습니다 — Claude Code, OpenAI Codex, Google Antigravity, Cursor, Windsurf 등.
 
 ### 왜 필요한가
 
@@ -80,7 +88,15 @@ git clone https://github.com/sshin90/pptx-korean-formatting.git
 cat pptx-korean-formatting/AGENTS.md >> AGENTS.md   # 프로젝트의 AGENTS.md에 병합
 ```
 
-**Google Antigravity, Cursor, Windsurf 등 다른 에이전틱 IDE**: 각 도구마다 프로젝트 규칙을 지정하는 자체 방식(커스텀 지침, `.cursorrules`, `.windsurfrules`, 워크스페이스 가이드라인 등)이 있습니다. 사용 중인 도구의 문서에서 정확한 파일명/위치를 확인한 뒤, [AGENTS.md](AGENTS.md)의 내용을 그 파일에 복사해 넣으세요.
+**Google Antigravity** (Gemini 기반 전역 규칙 디렉터리):
+```bash
+mkdir -p ~/.gemini/config/rules
+curl -o ~/.gemini/config/rules/pptx-korean-formatting.md \
+  https://raw.githubusercontent.com/sshin90/pptx-korean-formatting/master/AGENTS.md
+```
+이 디렉터리는 특정 프로젝트가 아니라 Antigravity의 모든 워크스페이스에 전역으로 적용됩니다.
+
+**Cursor, Windsurf 등 다른 에이전틱 IDE**: 각 도구마다 프로젝트 규칙을 지정하는 자체 방식(`.cursorrules` / `.cursor/rules/`, `.windsurfrules`, 워크스페이스 가이드라인 등)이 있습니다. 사용 중인 도구의 문서에서 정확한 파일명/위치를 확인한 뒤, [AGENTS.md](AGENTS.md)의 내용을 그 파일에 복사해 넣으세요.
 
 **그 외 모든 에이전트**: [AGENTS.md](AGENTS.md)의 내용을 시스템 프롬프트에 붙여넣거나, 한글 슬라이드를 생성하기 전에 이 파일을 읽도록 에이전트에게 지시하면 됩니다.
 
