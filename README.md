@@ -6,7 +6,9 @@ Korean-language formatting rules for AI coding agents that generate PowerPoint (
 
 ## Why
 
-PowerPoint applies word-wrap rules based on each run/paragraph's language tag. When Korean text is written with the default `en-US` tag, PowerPoint wraps it using English rules and breaks words mid-syllable (e.g. "안녕하세요" gets split into "안녕하" / "세요"). These rules make sure every Korean text run is tagged `lang="ko-KR"` and that formatting (font size/color) is set at the paragraph/master level instead of being hardcoded per-run, so later bulk edits in PowerPoint (like a theme color change) still work.
+In Korean typography, line breaks can technically occur at the syllable level, but in presentations, wrapping by whole words/phrases (어절) rather than breaking syllables mid-word is strongly preferred for readability. PowerPoint allows controlling this behavior (e.g., turning off "Allow Korean text to wrap in the middle of a word"), but when text retains the default `lang="en-US"` attribute, PowerPoint does not recognize the text as Korean, preventing Korean typographic and word-wrapping controls from functioning properly.
+
+These rules ensure every Korean text run is explicitly tagged with `lang="ko-KR"` so PowerPoint correctly handles Korean text features, and that formatting (font size/color) is set at the paragraph/master level instead of hardcoded per-run for seamless downstream edits.
 
 ## What it does
 
@@ -64,7 +66,10 @@ cat pptx-korean-formatting/AGENTS.md >> AGENTS.md   # merge into your project's 
 
 ### 왜 필요한가
 
-PowerPoint는 각 텍스트 런/문단에 지정된 언어 속성에 따라 줄바꿈 규칙을 적용합니다. 한글 텍스트에 기본값인 `en-US` 태그가 남아있으면 PowerPoint가 영어 줄바꿈 규칙을 적용해 단어를 음절 단위로 잘못 잘라버립니다 (예: "안녕하세요"가 "안녕하" / "세요"로 분리). 이 규칙들은 한글이 포함된 모든 텍스트 런에 `lang="ko-KR"`을 강제로 지정하고, 폰트 크기·색상 같은 서식을 run마다 하드코딩하지 않고 문단/마스터 레벨에 지정하도록 해서, 나중에 PowerPoint에서 테마 색상을 일괄 변경하는 등의 편집이 정상적으로 반영되도록 합니다.
+한글은 원칙적으로 음절 단위 줄바꿈이 가능하지만, 가독성이 중요한 프레젠테이션 환경에서는 단어 중간이 잘리는 것을 피하고 어절(단어) 단위로 줄바꿈하는 것이 일반적입니다.
+PowerPoint에서는 "한글 단어 잘림 허용" 옵션을 해제(off)하여 어절 단위 줄바꿈을 유도할 수 있습니다. 그러나 텍스트에 기본값인 `en-US` 언어 속성이 지정되어 있으면 PowerPoint가 해당 텍스트를 한글로 인식하지 못하므로, 한글 전용 줄바꿈 제어 옵션이나 맞춤법 검사 등의 기능이 정상적으로 작동하지 않습니다.
+
+따라서 텍스트가 한글로서 온전히 인식되어 PowerPoint의 한글 텍스트 처리 규칙과 줄바꿈 옵션이 정상 동작하도록 `lang="ko-KR"`을 명시해야 합니다. 또한 폰트 크기·색상 같은 서식을 run마다 하드코딩하지 않고 문단/마스터 레벨에 지정함으로써, 이후 PowerPoint에서 테마 색상을 일괄 변경하는 등의 작업이 정상적으로 상속·반영되도록 돕습니다.
 
 ### 무엇을 하는가
 

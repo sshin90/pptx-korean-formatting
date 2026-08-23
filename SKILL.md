@@ -1,6 +1,6 @@
 ---
 name: pptx-korean-formatting
-description: "Korean-language PowerPoint (.pptx) generation rules that must be applied ON TOP OF the standard pptx/pptxgenjs/python-pptx workflow whenever a slide deck contains Korean text. Trigger this whenever creating or editing a .pptx, .potx, or html2pptx-based deck that includes any Korean (한글) content — even if the user's request doesn't explicitly mention 'Korean' or 'lang'. This covers: (1) forcing Korean language tags (lang=\"ko-KR\" / msoLanguageIDKorean) on every text run/paragraph so PowerPoint's Korean word-wrap engine is used instead of the English one, and (2) pushing font/color formatting up to paragraph, layout, or master level instead of hardcoding it per-run, so downstream edits (e.g., bulk color changes in PowerPoint) aren't blocked. Always consult this skill together with the main pptx skill for any Korean-language deck."
+description: "Korean-language PowerPoint (.pptx) generation rules that must be applied ON TOP OF the standard pptx/pptxgenjs/python-pptx workflow whenever a slide deck contains Korean text. Trigger this whenever creating or editing a .pptx, .potx, or html2pptx-based deck that includes any Korean (한글) content — even if the user's request doesn't explicitly mention 'Korean' or 'lang'. This covers: (1) forcing Korean language tags (lang=\"ko-KR\" / msoLanguageIDKorean) on every text run/paragraph so PowerPoint recognizes Korean text and allows proper word/phrase-level wrapping controls instead of defaulting to English text behavior, and (2) pushing font/color formatting up to paragraph, layout, or master level instead of hardcoding it per-run, so downstream edits (e.g., bulk color changes in PowerPoint) aren't blocked. Always consult this skill together with the main pptx skill for any Korean-language deck."
 license: CC0-1.0
 ---
 
@@ -12,7 +12,7 @@ license: CC0-1.0
 
 ## 1. 언어 속성 (Language Tag)
 
-**증상:** 언어 속성이 `en-US`로 남아있으면 PowerPoint가 영어 줄바꿈 규칙을 적용해 한글 단어가 음절 단위로 잘못 잘린다 (예: "안녕하세요"가 "안녕하" / "세요"로 분리).
+**배경 및 원인:** 한글은 본래 음절 단위 줄바꿈이 가능하지만, 가독성이 중요한 프레젠테이션에서는 단어(어절) 단위 줄바꿈을 권장합니다. PowerPoint에서 "한글 단어 잘림 허용" 옵션을 끄더라도 텍스트의 언어 속성이 `en-US`로 남아있으면 PowerPoint가 한글로 인식하지 못해 한글 전용 줄바꿈 제어 옵션이 정상 동작하지 않습니다.
 
 **규칙:**
 - 한글이 포함된 모든 텍스트 런(run)·문단(paragraph)에 언어를 한국어로 명시한다.
