@@ -12,8 +12,12 @@ These rules ensure every Korean text run is explicitly tagged with `lang="ko-KR"
 
 ## What it does
 
-1. **Language tag enforcement** — forces `lang="ko-KR"` (or the tool-specific equivalent: `MSO_LANGUAGE_ID.KOREAN` for `python-pptx`, `lang: "ko-KR"` for `pptxgenjs`, `lang="ko-KR"` on the root element for `html2pptx`) on every run/paragraph containing Korean text, and confirms word-wrap is not disabled.
-2. **Formatting inheritance** — pushes font size/color up to slide master/layout or paragraph level instead of hardcoding on every run, so downstream edits in PowerPoint aren't blocked.
+1. **Language tag enforcement** — forces `lang="ko-KR"` (or the tool-specific equivalent: `MSO_LANGUAGE_ID.KOREAN` for `python-pptx`, `lang: "ko-KR"` for `pptxgenjs`, `lang="ko-KR"` on the root element for `html2pptx`) on every run/paragraph containing Korean text, and confirms word-wrap is enabled.
+2. **East Asian font specification (`<a:ea>`)** — specifies both Latin (`<a:latin>`) and East Asian (`<a:ea>`) font families so PowerPoint does not fallback to system default fonts (e.g. Malgun Gothic, Gulim) when opening presentations.
+3. **Formatting inheritance** — pushes font size/color up to slide master/layout or paragraph level instead of hardcoding on every run, so downstream edits in PowerPoint aren't blocked.
+4. **Native bullets & hanging indent** — avoids hardcoded bullet characters (`•`) in strings and enforces native PowerPoint bullets with proper hanging indentation (`marL`, `indent`), strictly following OpenXML ISO/IEC 29500-1 element order (`<a:buChar>` before `<a:defRPr>`) to prevent presentation repair warnings.
+5. **Single-shape card & container integration** — eliminates duplicate stacked shapes (background rectangle + floating textbox) by using a unified single shape with `vertical_anchor = TOP` and internal margins.
+6. **Production-ready helper module** — provides ready-to-use Python helper functions (`set_korean_font_and_lang`, `set_native_bullet`, `create_korean_card`).
 
 ## Files
 
@@ -73,8 +77,12 @@ PowerPoint에서는 "한글 단어 잘림 허용" 옵션을 해제(off)하여 �
 
 ### 무엇을 하는가
 
-1. **언어 태그 강제 지정** — 한글이 포함된 모든 run/문단에 `lang="ko-KR"` (또는 도구별 동등 속성: `python-pptx`의 `MSO_LANGUAGE_ID.KOREAN`, `pptxgenjs`의 `lang: "ko-KR"`, `html2pptx`의 루트 요소 `lang="ko-KR"`)을 적용하고, 줄바꿈(word-wrap)이 꺼져있지 않은지 확인합니다.
-2. **서식 상속 처리** — 폰트 크기·색상을 run마다 반복 지정하지 않고 슬라이드 마스터/레이아웃 또는 문단 레벨로 올려서, 이후 PowerPoint에서의 편집이 막히지 않도록 합니다.
+1. **언어 태그 강제 지정** — 한글이 포함된 모든 run/문단에 `lang="ko-KR"` (또는 도구별 동등 속성: `python-pptx`의 `MSO_LANGUAGE_ID.KOREAN`, `pptxgenjs`의 `lang: "ko-KR"`, `html2pptx`의 루트 요소 `lang="ko-KR"`)을 적용하고, 자동 줄바꿈(word-wrap)이 켜져 있는지 확인합니다.
+2. **한글 폰트(East Asian Font) 명시** — `<a:latin>`뿐만 아니라 동아시아 폰트 태그(`<a:ea>`)를 동일하게 지정하여 맑은 고딕 등으로의 강제 폴백을 방지합니다.
+3. **서식 상속 처리** — 폰트 크기·색상을 run마다 반복 지정하지 않고 슬라이드 마스터/레이아웃 또는 문단 레벨로 올려서, 이후 PowerPoint에서의 편집이 막히지 않도록 합니다.
+4. **네이티브 불릿 및 내어쓰기** — 문자열 불릿(`•`) 하드코딩 대신 OpenXML 스키마 순서를 준수한 네이티브 불릿 및 내어쓰기(`marL`, `indent`, `<a:buChar>` before `<a:defRPr>`)를 적용하여 둘째 줄 이후 정렬을 유지하고 파일 복구 오류를 방지합니다.
+5. **카드/컨테이너 단일 도형 통합** — 배경 도형과 텍스트 상자를 분리하지 않고 단일 도형(`vertical_anchor=TOP` + 내부 마진)으로 일체화하여 레이아웃 분리 현상을 방지하고 편집성을 극대화합니다.
+6. **완결형 파이썬 헬퍼 제공** — 실무에서 즉시 활용할 수 있는 검증된 헬퍼 모음(`set_korean_font_and_lang`, `set_native_bullet`, `create_korean_card`)을 제공합니다.
 
 ### 파일 구성
 
