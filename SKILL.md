@@ -13,11 +13,13 @@ compatibility: "Supplementary guidance. Follow the active presentation workflow 
 
 ## 1. 언어 속성 (Language Tag) & 단어 단위 줄바꿈
 
-**증상:** 언어 속성이 기본값(`en-US`)으로 남아있으면 PowerPoint가 영어 줄바꿈 규칙을 적용하여 한글 단어가 음절 단위로 뚝뚝 끊겨 잘린다 (예: "안녕하세요"가 "안녕하" / "세요"로 분리).
+**증상:** 언어 속성이 기본값(`en-US`)으로 남아 있거나 문단의 단어 중간 줄바꿈 속성이 켜져 있으면 PowerPoint가 한글·영문 단어를 음절/문자 단위로 분리할 수 있다 (예: "안녕하세요"가 "안녕하" / "세요"로 분리).
 
 **규칙:**
 - 한글이 포함된 모든 텍스트 런(run)과 문단(paragraph)에 언어를 한국어(`ko-KR` / 1042)로 명시한다.
-- 텍스트 컨테이너의 자동 줄바꿈(`word_wrap`)을 활성화한다.
+- 텍스트 컨테이너의 자동 줄바꿈(`word_wrap`)은 활성화한다. 이 속성은 상자 폭을 넘을 때 다음 줄로 보낼지 여부만 결정하며, 단어 중간 줄바꿈 허용 여부와는 별개다.
+- 한글과 영문 모두 단어 중간에서 줄바꿈하지 않도록 문단/마스터의 단어 줄바꿈 속성을 끈다. Open XML에서는 `<a:pPr eaLnBrk="0" latinLnBrk="0">`를 우선 사용하고, 마스터·레이아웃의 기본 문단 속성(`a:lvlXpPr`)에도 같은 값을 적용한다. 값이 생략되어 있거나 상속으로 불명확하면 명시적으로 `0`을 기록한다.
+- 기존 PPTX를 가져와 내보내는 작업에서는 이 속성이 자동으로 `1`로 바뀌지 않았는지 전후 XML을 비교한다. 최종 검수에서 모든 슬라이드·마스터·레이아웃의 `eaLnBrk`와 `latinLnBrk`가 `0`인지 확인한다.
 - 도구별 지정 방법:
 
 | 도구 | 방법 |
@@ -28,10 +30,20 @@ compatibility: "Supplementary guidance. Follow the active presentation workflow 
 | 직접 XML 편집 (`ppt/slides/slideN.xml`) | 모든 `<a:rPr>` / `<a:defRPr>`에 `lang="ko-KR"` 속성 추가. 줄바꿈 문단은 `<a:endParaRPr lang="ko-KR"/>` 추가. |
 | `html2pptx` / HTML 중간 산출물 | 루트 요소 또는 텍스트 컨테이너에 `lang="ko-KR"` 명시. |
 
-- `python-pptx` 줄바꿈 활성화: `text_frame.word_wrap = True`
+- `python-pptx` 줄바꿈 활성화: `text_frame.word_wrap = True` (단어 중간 줄바꿈 방지 설정과 별개)
 - `pptxgenjs` 줄바꿈: 텍스트박스는 기본 활성화되어 있으므로 `wrap: false`로 끄지 않도록 주의.
 
 ---
+
+### 단어 중간 줄바꿈 방지 구현
+
+```xml
+<a:pPr eaLnBrk="0" latinLnBrk="0"/>
+```
+
+`word_wrap = False` 또는 `wrap: false`로 바꾸어 문제를 해결하지 않는다. 그렇게 하면 자동 줄바꿈 자체가 꺼져 텍스트가 상자 밖으로 넘칠 수 있다. 원하는 동작은 `word_wrap = True`를 유지하면서 `eaLnBrk="0"`과 `latinLnBrk="0"`을 문단 또는 상속 기본값에 지정하는 것이다.
+
+직접 XML을 수정할 때는 기존 `<a:pPr>`의 속성을 보존하면서 두 속성을 추가·갱신한다. 문단별 설정이 없는 경우에는 슬라이드 마스터와 레이아웃의 `a:lvlXpPr`에도 동일하게 지정하여 상속 경로를 닫는다.
 
 ## 2. 한글 폰트(East Asian Font) 명시
 
@@ -287,7 +299,9 @@ def create_korean_card(slide, left, top, width, height, bg_color=RGBColor(245, 2
 ## 체크리스트 (생성/편집 완료 후)
 
 - [ ] 한글이 포함된 모든 run/문단에 `lang="ko-KR"` (또는 `MSO_LANGUAGE_ID.KOREAN`)이 적용되었는가?
-- [ ] 텍스트 프레임의 줄바꿈(`word_wrap = True`)이 켜져 있는가?
+- [ ] 텍스트 프레임의 자동 줄바꿈(`word_wrap = True`)이 켜져 있는가? (`word_wrap`을 단어 중간 줄바꿈 방지 속성으로 오해하지 않았는가?)
+- [ ] 모든 한글·영문 문단과 마스터/레이아웃 기본 문단에서 `eaLnBrk="0"`, `latinLnBrk="0"`으로 단어 중간 줄바꿈이 꺼져 있는가?
+- [ ] 가져오기·내보내기 후에도 `eaLnBrk`와 `latinLnBrk`가 `1`로 바뀌지 않았는지 XML 전수 검증했는가?
 - [ ] 한글 폰트 지정 시 `<a:latin>`뿐만 아니라 `<a:ea>`(동아시아 폰트)가 동일하게 지정되어 맑은 고딕 강제 폴백을 방지했는가?
 - [ ] 폰트 크기·색상이 run마다 반복 하드코딩되지 않고 문단/마스터 레벨에서 정상 상속되는가?
 - [ ] 목록 형태의 문단에 유니코드 기호(`•`)를 텍스트로 직접 치지 않고, 네이티브 불릿(`marL`, `indent`, `<a:buChar>`)을 통한 내어쓰기(Hanging Indent)가 적용되었는가?
