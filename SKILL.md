@@ -2,7 +2,8 @@
 name: pptx-korean-formatting
 description: "Supplementary Korean-language PowerPoint formatting rules. Use with the active presentation workflow whenever a .pptx, .potx, or HTML-to-PPTX deck contains Korean text. Preserve the primary workflow's backend and validation steps. Apply ko-KR language metadata, East Asian fonts, paragraph-or-master-level default formatting, native bullets, and single-shape text containers; use run-level overrides only for intentional partial emphasis."
 license: Personal use
-compatibility: "Supplementary guidance. Follow the active presentation workflow first (Codex currently uses @oai/artifact-tool); the python-pptx and PptxGenJS snippets apply only when that backend is explicitly in use."
+metadata:
+  compatibility: "Supplementary guidance. Follow the active presentation workflow first (Codex currently uses @oai/artifact-tool); the python-pptx and PptxGenJS snippets apply only when that backend is explicitly in use."
 ---
 
 # PPTX 한국어 생성 규칙 (Korean PPTX Generation Rules)
