@@ -5,6 +5,8 @@ korean_pptx.py
 python-pptx 기반 프레젠테이션 제작 시 사용하는 한국어 전용 서식 헬퍼 모듈.
 """
 
+from pptx.oxml import parse_xml
+from pptx.oxml.ns import nsdecls, qn
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.text import MSO_ANCHOR
@@ -14,6 +16,15 @@ from pptx.util import Inches, Pt
 
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 POST_EA_TAGS = [f"{{{A_NS}}}{t}" for t in ["cs", "sym", "hlinkClick", "hlinkMouseOver", "rtl", "extLst"]]
+
+# pPr 내 불릿 관련 요소 전체 (색상/크기/폰트/종류 각 그룹은 하나만 존재 가능한 choice)
+BULLET_TAGS = [
+    f"{{{A_NS}}}{t}"
+    for t in ["buClrTx", "buClr", "buSzTx", "buSzPct", "buSzPts", "buFontTx", "buFont",
+              "buNone", "buAutoNum", "buChar", "buBlip"]
+]
+# 스키마상 불릿 요소 뒤에 와야 하는 pPr 자식 요소
+POST_BULLET_TAGS = [f"{{{A_NS}}}{t}" for t in ["tabLst", "defRPr", "extLst"]]
 
 
 def _insert_ea_to_prop(prop_elm, font_name):
@@ -86,10 +97,9 @@ def set_native_bullet(paragraph, char="•", mar_l=Inches(0.3), indent=-Inches(0
     pPr.set("marL", str(int(mar_l)))
     pPr.set("indent", str(int(indent)))
 
-    # 1. 기존 불릿 관련 태그 제거 (중복 방지)
-    ns = f"{{{A_NS}}}"
-    for tag_name in ["buChar", "buNone", "buAutoNum", "buBlip", "buClrTx", "buSzTx"]:
-        for child in pPr.findall(f"{ns}{tag_name}"):
+    # 1. 기존 불릿 관련 태그 전체 제거 (buClr/buSzPct/buFont 등과 choice 중복 방지)
+    for child in list(pPr):
+        if child.tag in BULLET_TAGS:
             pPr.remove(child)
 
     # 2. 불릿 요소 생성: 텍스트 색상 상속(buClrTx), 크기 상속(buSzTx), 불릿 문자(buChar)
@@ -98,17 +108,15 @@ def set_native_bullet(paragraph, char="•", mar_l=Inches(0.3), indent=-Inches(0
     bu_char = OxmlElement("a:buChar")
     bu_char.set("char", char)
 
-    # 3. 스키마 순서 준수: [buClrTx, buSzTx, buChar] -> defRPr
-    defRPr = pPr.find(f"{ns}defRPr")
-    if defRPr is not None:
-        idx = list(pPr).index(defRPr)
-        pPr.insert(idx, bu_clr_tx)
-        pPr.insert(idx + 1, bu_sz_tx)
-        pPr.insert(idx + 2, bu_char)
-    else:
-        pPr.append(bu_clr_tx)
-        pPr.append(bu_sz_tx)
-        pPr.append(bu_char)
+    # 3. 스키마 순서 준수: lnSpc/spcBef/spcAft -> [buClrTx, buSzTx, buChar] -> tabLst -> defRPr -> extLst
+    idx = len(pPr)
+    for i, child in enumerate(pPr):
+        if child.tag in POST_BULLET_TAGS:
+            idx = i
+            break
+    pPr.insert(idx, bu_clr_tx)
+    pPr.insert(idx + 1, bu_sz_tx)
+    pPr.insert(idx + 2, bu_char)
 
 
 def create_korean_card(
@@ -121,25 +129,75 @@ def create_korean_card(
     border_color=RGBColor(220, 225, 230),
     line_width_pt=1,
     margin_inch=0.3,
+    shape_type=MSO_SHAPE.RECTANGLE,
+    vertical_anchor=None,
+    text_color=None,
 ):
     """
-    배경 도형과 텍스트 박스를 일체화한 단일 카드 도형 생성.
-    사용자 드래그 시 분리되지 않고 편집성이 우수합니다.
+    배경 도형과 텍스트 프레임을 일체화한 단일 카드/도형(사각형, 원형, 둥근 사각형 등) 생성.
+    사용자 드래그 시 분리되지 않고 일체형으로 편집할 수 있습니다.
+
+    :param slide: 슬라이드 객체
+    :param left: 가로 위치 (Pt 또는 Inches)
+    :param top: 세로 위치 (Pt 또는 Inches)
+    :param width: 너비 (Pt 또는 Inches)
+    :param height: 높이 (Pt 또는 Inches)
+    :param bg_color: 배경 색상 (RGBColor 또는 None=투명)
+    :param border_color: 테두리 색상 (RGBColor 또는 None=없음)
+    :param line_width_pt: 테두리 두께 (Pt, 기본값 1pt)
+    :param margin_inch: 텍스트 내부 마진 (Inches, 기본값 0.3인치)
+    :param shape_type: MSO_SHAPE enum (기본값: RECTANGLE, 원형은 OVAL, 둥근 사각형은 ROUNDED_RECTANGLE 등)
+    :param vertical_anchor: MSO_ANCHOR enum (미지정 시 OVAL은 MSO_ANCHOR.MIDDLE, 그 외는 MSO_ANCHOR.TOP 기본 적용)
+    :param text_color: 기본 글자색 (RGBColor, 미지정 시 테마 텍스트 색 상속 / 어두운 배경이면 지정)
     """
-    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = bg_color
-    shape.line.color.rgb = border_color
-    shape.line.width = Pt(line_width_pt)
+    shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+
+    # python-pptx 기본 도형 스타일(p:style)은 흰색 글자(fontRef lt1)와 그림자(effectRef)를 강제해
+    # 밝은 배경 카드에서 글자가 보이지 않으므로 제거하고 테마 기본 서식을 상속받게 함
+    style = shape._element.find(qn("p:style"))
+    if style is not None:
+        shape._element.remove(style)
+
+    if bg_color is not None:
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = bg_color
+    else:
+        shape.fill.background()
+
+    if border_color is not None and line_width_pt > 0:
+        shape.line.color.rgb = border_color
+        shape.line.width = Pt(line_width_pt)
+    else:
+        shape.line.fill.background()
 
     tf = shape.text_frame
     tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.TOP
-    tf.margin_left = Inches(margin_inch)
-    tf.margin_right = Inches(margin_inch)
-    tf.margin_top = Inches(margin_inch)
-    tf.margin_bottom = Inches(margin_inch)
+
+    if vertical_anchor is not None:
+        tf.vertical_anchor = vertical_anchor
+    else:
+        # 원형/타원형(OVAL)의 경우 통상 중앙 정렬, 직사각형 카드는 상단 정렬이 기본
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE if shape_type == MSO_SHAPE.OVAL else MSO_ANCHOR.TOP
+
+    if margin_inch is not None:
+        tf.margin_left = Inches(margin_inch)
+        tf.margin_right = Inches(margin_inch)
+        tf.margin_top = Inches(margin_inch)
+        tf.margin_bottom = Inches(margin_inch)
+
+    if text_color is not None:
+        # run마다 하드코딩하지 않고 도형의 목록 스타일(lstStyle)에서 상속
+        lst_style = tf._txBody.find(qn("a:lstStyle"))
+        lst_style.append(parse_xml(
+            f'<a:lvl1pPr {nsdecls("a")}><a:defRPr><a:solidFill>'
+            f'<a:srgbClr val="{text_color}"/></a:solidFill></a:defRPr></a:lvl1pPr>'
+        ))
+
     return shape
+
+
+# 단일 도형 생성 헬퍼 별칭 (원형, 뱃지 등 카드 외 다양한 도형 생성 시 직관적 사용)
+create_korean_shape = create_korean_card
 
 
 def _extract_text_frames(container):
@@ -154,7 +212,11 @@ def _extract_text_frames(container):
             tfs.extend(_extract_text_frames(slide))
         return tfs
 
-    # 2. Slide 또는 GroupShape의 shapes 컬렉션
+    # 2. Table 객체를 직접 전달한 경우 (graphicFrame.table)
+    if hasattr(container, "iter_cells"):
+        return [cell.text_frame for cell in container.iter_cells()]
+
+    # 3. Slide 또는 GroupShape의 shapes 컬렉션
     shapes = []
     if hasattr(container, "shapes"):
         shapes = list(container.shapes)

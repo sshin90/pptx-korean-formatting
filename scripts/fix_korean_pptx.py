@@ -3,7 +3,7 @@
 """
 fix_korean_pptx.py
 PPTX 파일의 한국어 서식(언어 태그, 단어 단위 줄바꿈, 동아시아 폰트)을 일괄 보정하는 고속 CLI 도구.
-파이썬 표준 라이브러리(zipfile, xml.etree.ElementTree)만으로 동작하여 의존성 없이 초고속(0.1초 미만) 처리됩니다.
+python-pptx와 함께 설치되는 lxml만 사용하며, 네임스페이스 접두사(mc:Ignorable, Requires 등)를 원본 그대로 보존합니다.
 """
 
 import argparse
@@ -13,22 +13,64 @@ import shutil
 import sys
 import tempfile
 import zipfile
-import xml.etree.ElementTree as ET
+
+try:
+    from lxml import etree
+except ImportError as e:  # pragma: no cover
+    raise ImportError("lxml이 필요합니다: pip install lxml (python-pptx 설치 시 함께 설치됩니다)") from e
 
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
 R_NS_DOC = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 PKG_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
-ET.register_namespace("a", A_NS)
-ET.register_namespace("p", P_NS)
-ET.register_namespace("r", R_NS_DOC)
+# xml.etree는 직렬화 시 접두사를 ns0, ns1...로 바꿔 mc:Ignorable="p14" 같은
+# 접두사 문자열 참조를 깨뜨리므로(PowerPoint 복구 경고) lxml을 사용합니다.
+_XML_PARSER = etree.XMLParser(resolve_entities=False, huge_tree=True)
 
 POST_EA_TAGS = [f"{{{A_NS}}}{t}" for t in ["cs", "sym", "hlinkClick", "hlinkMouseOver", "rtl", "extLst"]]
+
+# 테마 폰트 참조: latin용 참조를 ea에 그대로 복사하면 안 되고 ea용 참조로 대응시켜야 합니다.
+THEME_LATIN_TO_EA = {"+mn-lt": "+mn-ea", "+mj-lt": "+mj-ea"}
+
+# 한글 글리프를 가진 것으로 알려진 폰트 이름 단서 (소문자 부분 일치)
+KOREAN_FONT_HINTS = (
+    "pretendard", "malgun", "nanum", "gulim", "dotum", "batang", "gungsuh",
+    "spoqa", "apple sd gothic", "applegothic", "kopub", "noto sans cjk", "noto serif cjk",
+)
+HANGUL_RE = re.compile("[ᄀ-ᇿ㄰-㆏가-힣]")
 
 
 def qualify(ns, tag):
     return f"{{{ns}}}{tag}"
+
+
+def _parse(xml_bytes):
+    return etree.fromstring(xml_bytes, _XML_PARSER)
+
+
+def is_korean_font(typeface):
+    """폰트 이름만으로 한글 지원 여부를 추정합니다 (한글 이름, 'KR' 접미사, 알려진 폰트)."""
+    if not typeface:
+        return False
+    if HANGUL_RE.search(typeface):
+        return True
+    lower = typeface.lower()
+    return lower.endswith(" kr") or any(hint in lower for hint in KOREAN_FONT_HINTS)
+
+
+def resolve_ea_typeface(latin_typeface, default_font):
+    """
+    latin 폰트에 대응하는 ea 폰트를 결정합니다.
+    - 테마 참조(+mn-lt/+mj-lt) -> +mn-ea/+mj-ea
+    - 한글 지원 폰트 -> latin과 동일하게 동기화
+    - 그 외(Calibri, Arial 등 한글 글리프 없음) -> default_font
+    """
+    if latin_typeface in THEME_LATIN_TO_EA:
+        return THEME_LATIN_TO_EA[latin_typeface]
+    if is_korean_font(latin_typeface):
+        return latin_typeface
+    return default_font
 
 
 def _insert_ea_element(parent_elm, target_typeface):
@@ -39,12 +81,17 @@ def _insert_ea_element(parent_elm, target_typeface):
     """
     ea = parent_elm.find(qualify(A_NS, "ea"))
     if ea is not None:
-        if not ea.get("typeface") and target_typeface:
+        current = ea.get("typeface")
+        # 이전 버전이 잘못 기록한 latin용 테마 참조(+mn-lt 등)를 ea용 참조로 교정
+        if current in THEME_LATIN_TO_EA:
+            ea.set("typeface", THEME_LATIN_TO_EA[current])
+            return True
+        if not current and target_typeface:
             ea.set("typeface", target_typeface)
             return True
         return False
 
-    ea_elem = ET.Element(qualify(A_NS, "ea"))
+    ea_elem = parent_elm.makeelement(qualify(A_NS, "ea"))
     ea_elem.set("typeface", target_typeface)
 
     latin = parent_elm.find(qualify(A_NS, "latin"))
@@ -71,7 +118,7 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
     을 수행하고 수정 여부와 수정된 바이트를 반환합니다.
     """
     try:
-        root = ET.fromstring(xml_bytes)
+        root = _parse(xml_bytes)
     except Exception as e:
         return False, xml_bytes, {"error": str(e)}
 
@@ -90,7 +137,7 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
         pPr = p.find(qualify(A_NS, "pPr"))
         if pPr is None:
             # pPr이 없는 문단: 최상단에 pPr을 신규 생성하여 주입
-            pPr = ET.Element(qualify(A_NS, "pPr"))
+            pPr = p.makeelement(qualify(A_NS, "pPr"))
             pPr.set("eaLnBrk", "0")
             pPr.set("latinLnBrk", "0")
             p.insert(0, pPr)
@@ -116,10 +163,8 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
                 modified = True
             # defRPr 내부의 ea 폰트 확인
             latin_def = defRPr.find(qualify(A_NS, "latin"))
-            font_to_apply = default_font
-            if latin_def is not None and latin_def.get("typeface"):
-                font_to_apply = latin_def.get("typeface")
-            if _insert_ea_element(defRPr, font_to_apply):
+            latin_face = latin_def.get("typeface") if latin_def is not None else None
+            if _insert_ea_element(defRPr, resolve_ea_typeface(latin_face, default_font)):
                 stats["defRPr_patched"] += 1
                 modified = True
 
@@ -127,7 +172,7 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
         for r in p.iter(qualify(A_NS, "r")):
             rPr = r.find(qualify(A_NS, "rPr"))
             if rPr is None:
-                rPr = ET.Element(qualify(A_NS, "rPr"))
+                rPr = r.makeelement(qualify(A_NS, "rPr"))
                 r.insert(0, rPr)
                 modified = True
 
@@ -139,11 +184,9 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
 
             # latin 폰트와 ea 폰트 동기화 (스키마 순서 준수)
             latin = rPr.find(qualify(A_NS, "latin"))
-            target_typeface = default_font
-            if latin is not None and latin.get("typeface"):
-                target_typeface = latin.get("typeface")
+            latin_face = latin.get("typeface") if latin is not None else None
 
-            if _insert_ea_element(rPr, target_typeface):
+            if _insert_ea_element(rPr, resolve_ea_typeface(latin_face, default_font)):
                 stats["rPr_ea_patched"] += 1
                 modified = True
 
@@ -156,7 +199,7 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
                 modified = True
 
     if modified:
-        new_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        new_xml = etree.tostring(root, encoding="UTF-8", xml_declaration=True, standalone=True)
         return True, new_xml, stats
     return False, xml_bytes, stats
 
@@ -164,7 +207,7 @@ def patch_xml_content(xml_bytes, default_font="Pretendard"):
 def verify_xml_content(xml_bytes):
     """서식 누락 항목 정밀 진단 (읽기 전용)"""
     try:
-        root = ET.fromstring(xml_bytes)
+        root = _parse(xml_bytes)
     except Exception as e:
         return {"error": str(e)}
 
@@ -206,7 +249,7 @@ def get_slide_file_map(zin):
         if "ppt/_rels/presentation.xml.rels" not in zin.namelist():
             return {}
         rels_xml = zin.read("ppt/_rels/presentation.xml.rels")
-        rels_root = ET.fromstring(rels_xml)
+        rels_root = _parse(rels_xml)
         rel_map = {}
         for rel in rels_root.findall(qualify(PKG_REL_NS, "Relationship")):
             rid = rel.get("Id")
@@ -220,7 +263,7 @@ def get_slide_file_map(zin):
         if "ppt/presentation.xml" not in zin.namelist():
             return {}
         pres_xml = zin.read("ppt/presentation.xml")
-        pres_root = ET.fromstring(pres_xml)
+        pres_root = _parse(pres_xml)
 
         slide_map = {}
         sld_id_lst = pres_root.find(qualify(P_NS, "sldIdLst"))
@@ -310,10 +353,10 @@ def process_pptx(pptx_path, output_path=None, target_slide=None, default_font="P
                     print(f"[-] 서식 미흡 항목 발견 ({len(issues_found)}개 파트):")
                     for name, iss in issues_found.items():
                         detail = ", ".join(f"{k}={v}" for k, v in iss.items() if v > 0)
-                        print(f"  • {name}: {detail}")
+                        print(f"  - {name}: {detail}")
                     return 2
                 else:
-                    print("[✓] 검증 완료: 모든 문단 및 런의 한국어 서식이 완벽하게 적용되어 있습니다.")
+                    print("[OK] 검증 완료: 모든 문단 및 런의 한국어 서식이 완벽하게 적용되어 있습니다.")
                     return 0
 
             # 수정 모드: 임시 zip 파일로 복사하며 패치
@@ -347,11 +390,11 @@ def process_pptx(pptx_path, output_path=None, target_slide=None, default_font="P
         ea_count = total_stats["rPr_ea_patched"]
 
         target_desc = f"슬라이드 #{target_slide}" if target_slide is not None else "전체 슬라이드 및 마스터"
-        print(f"[✓] 한국어 서식 보정 완료 ({target_desc}):")
-        print(f"  • 검사 대상: {proc_count}개 파일 중 {mod_count}개 보정 적용")
-        print(f"  • 줄바꿈 방지 설정: {p_count}개 속성 주입 (eaLnBrk/latinLnBrk='0')")
-        print(f"  • 한국어 언어 태그: {lang_count}개 런 적용 (lang='ko-KR')")
-        print(f"  • 동아시아 폰트 보정: {ea_count}개 런 동기화 (typeface='{default_font}')")
+        print(f"[OK] 한국어 서식 보정 완료 ({target_desc}):")
+        print(f"  - 검사 대상: {proc_count}개 파일 중 {mod_count}개 보정 적용")
+        print(f"  - 줄바꿈 방지 설정: {p_count}개 속성 주입 (eaLnBrk/latinLnBrk='0')")
+        print(f"  - 한국어 언어 태그: {lang_count}개 런 적용 (lang='ko-KR')")
+        print(f"  - 동아시아 폰트 보정: {ea_count}개 런 동기화 (기본 typeface='{default_font}', 테마/한글 폰트는 유지)")
         return 0
 
     finally:
@@ -370,6 +413,13 @@ def main():
     parser.add_argument("--no-masters", action="store_true", help="슬라이드 마스터/레이아웃 제외하고 슬라이드 본문만 보정")
 
     args = parser.parse_args()
+
+    # cp949 등 제한된 콘솔 인코딩에서 출력 문자 때문에 (이미 저장된 뒤) 크래시하지 않도록 함
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
 
     ret = process_pptx(
         pptx_path=args.pptx_file,

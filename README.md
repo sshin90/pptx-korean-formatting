@@ -9,7 +9,7 @@ PowerPoint(`.pptx`/`.potx`)에 한글이 포함될 때 필요한 언어 태그, 
 ## 주요 기능
 
 1. **원클릭 CLI 후처리기 (`scripts/fix_korean_pptx.py`)**:
-   * 외부 의존성 없이 순수 파이썬 표준 라이브러리(`zipfile`, `xml.etree.ElementTree`)로 동작
+   * python-pptx 설치 시 함께 설치되는 `lxml`만 사용하며, 네임스페이스 접두사(`mc:Ignorable`, `Requires` 등)를 원본 그대로 보존
    * 슬라이드/마스터 XML을 고속(0.1초 미만) 분석하여 `ko-KR`, `eaLnBrk="0"`, `<a:ea>` 폰트 일괄 주입
    * OpenXML ISO/IEC 29500-1 스키마 순서(`latin` → `ea` → `hlinkClick`) 및 `pPr` 미존재 문단 자동 생성 엄격 준수
    * `presentation.xml` 기반 실제 슬라이드 순서(1-based) 지정 보정(`--slide`) 및 정밀 서식 진단(`--verify`) 지원
@@ -62,7 +62,6 @@ prs.save("output.pptx")
 pptx-korean-formatting/
 ├── SKILL.md                          # 에이전트 참조용 핵심 지침 (경량화)
 ├── README.md                         # 저장소 소개 및 CLI 사용 가이드
-├── AGENTS.md                         # 에이전트 지침 링크
 ├── scripts/
 │   ├── __init__.py
 │   ├── fix_korean_pptx.py            # 고속 XML 후처리기 (의존성 없음)
