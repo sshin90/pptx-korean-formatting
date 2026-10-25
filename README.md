@@ -1,86 +1,72 @@
 # pptx-korean-formatting
 
-PowerPoint(`.pptx`/`.potx`)에 한글이 포함될 때 필요한 언어 태그, 단어 단위 줄바꿈, 동아시아 폰트, 서식 상속, 네이티브 불릿, 편집 가능한 카드 도형 규칙을 제공하는 Agent Skill입니다.
+한국어 PowerPoint의 언어·줄바꿈·EA 폰트·서식 상속·네이티브 불릿·단일 도형 카드 제작을 보완하는 Agent Skill입니다.
 
-초고속 CLI 후처리기(`scripts/fix_korean_pptx.py`)와 재사용 가능한 파이썬 헬퍼(`scripts/korean_pptx.py`)를 내장하여 슬라이드 편집 및 생성 작업을 최소한의 지연 시간으로 수행할 수 있습니다.
+기존 템플릿을 위한 기본 모드는 **폰트와 테마 보존**입니다. 단순 누락 보정, 폰트 통일, 공용 테마 변경을 구분합니다. 세부 제작 지침은 [SKILL.md](SKILL.md)를 참고하세요.
 
----
+## 요구 환경
 
-## 주요 기능
+- Python 3.10 이상, CLI는 `lxml` 필요
+- 생성 헬퍼와 테스트는 `python-pptx` 필요
+- 검증 환경: Python 3.12, python-pptx 1.0.2, lxml 6.1.1, PptxGenJS 4.0.1
+- Transitional `.pptx`/`.potx`; 폰트는 사용 환경에 별도 설치
 
-1. **원클릭 CLI 후처리기 (`scripts/fix_korean_pptx.py`)**:
-   * python-pptx 설치 시 함께 설치되는 `lxml`만 사용하며, 네임스페이스 접두사(`mc:Ignorable`, `Requires` 등)를 원본 그대로 보존
-   * 슬라이드/마스터(`txStyles`)/레이아웃/테마(`theme1.xml`) XML을 고속(0.1초 미만) 분석하여 `ko-KR`, `eaLnBrk="0"`, `<a:latin>`/`<a:ea>` 폰트 일괄 주입 (`-f` 지정 시 테마 폰트까지 일괄 교체)
-   * OpenXML ISO/IEC 29500-1 스키마 순서(`latin` → `ea` → `hlinkClick`) 및 `pPr` 미존재 문단 자동 생성, 문단 레벨(`defRPr`) 서식 상속 엄격 준수
-   * `presentation.xml` 기반 실제 슬라이드 순서(1-based) 지정 보정(`--slide`) 및 정밀 서식 진단(`--verify`) 지원
-2. **파이썬 헬퍼 모듈 (`scripts/korean_pptx.py`)**:
-   * `set_korean_font_and_lang`: 영문(`latin`)과 동아시아(`ea`) 폰트 및 언어 동시 설정 (Run, Paragraph, Font 모두 지원, 스키마 순서 준수)
-   * `set_native_bullet`: OpenXML 스키마 규격을 준수한 네이티브 불릿 및 들여쓰기
-   * `create_korean_card` / `create_korean_shape`: 배경과 텍스트가 일체화된 단일 카드/도형 생성 (다단 레벨 색상 상속 지원)
-   * `apply_korean_formatting`: 슬라이드, 도형뿐만 아니라 **표(Table), 그룹 도형(GroupShape), 전체 프레젠테이션(`prs`)**까지 재귀 일괄 적용
-3. **핵심 원칙 가이드 (`SKILL.md`)**:
-   * 에이전트 토큰 소모를 줄인 초경량 Fast-Path 중심 문서화
+## CLI
 
----
-
-## 빠른 사용법
-
-### 1. CLI로 기존 PPTX 일괄 보정
 ```bash
-# 전체 슬라이드, 표, 마스터, 테마 보정 (in-place)
-python scripts/fix_korean_pptx.py presentation.pptx
-
-# 특정 폰트로 슬라이드/마스터/테마 폰트까지 일괄 변경
-python scripts/fix_korean_pptx.py presentation.pptx -f "Pretendard"
-
-# 특정 슬라이드만 고속 보정 (1-based 인덱스)
-python scripts/fix_korean_pptx.py presentation.pptx --slide 2
-
-# 서식 누락 항목 정밀 진단
-python scripts/fix_korean_pptx.py presentation.pptx --verify
+python scripts/fix_korean_pptx.py input.pptx -o output.pptx
+python scripts/fix_korean_pptx.py input.pptx --slide 2 -f "Pretendard" -o output.pptx
+python scripts/fix_korean_pptx.py output.pptx --verify
+python scripts/fix_korean_pptx.py output.pptx --verify -f "Pretendard"
 ```
 
-### 2. 파이썬 스크립트에서 모듈 사용
+- `-o` 생략: 원본 교체. XML 오류 또는 저장 실패 시 원본/기존 출력 보존.
+- `-f`: 한국어 문단 기본 폰트 통일. 한국어 run의 폰트 override만 제거하고 색상·강조·링크 보존.
+- `--slide N`: 표시 순서 기준 N번째 슬라이드만 변경. 공유 파트 불변.
+- `--no-masters`: 마스터·레이아웃 제외.
+- `--all-text`: 외국어·숫자 필드·빈 문단·공유 목록 스타일도 한국어 정책으로 통일. 심볼 폰트가 직접 지정된 run은 제외.
+- `--update-theme`: `-f`와 함께 공용 테마 폰트까지 변경. `--slide`/`--no-masters`와 병용 불가.
+
+전체 문서 통일이 의도된 경우:
+
+```bash
+python scripts/fix_korean_pptx.py input.pptx -f "Pretendard" --all-text --update-theme -o output.pptx
+```
+
+## Python
+
 ```python
 from pptx import Presentation
 from pptx.util import Inches
-from scripts.korean_pptx import create_korean_card, set_native_bullet, apply_korean_formatting
+from scripts.korean_pptx import create_korean_card, apply_korean_formatting
 
 prs = Presentation()
 slide = prs.slides.add_slide(prs.slide_layouts[6])
-
-# 일체형 카드 생성 (Inches 또는 Pt 단위 사용)
-card = create_korean_card(
-    slide, left=Inches(1.0), top=Inches(1.0), width=Inches(5.0), height=Inches(3.0)
-)
-card.text_frame.text = "카드 본문 내용입니다."
-
-# 전체 프레젠테이션(표, 도형 포함) 원클릭 서식 일괄 보정
+card = create_korean_card(slide, Inches(1), Inches(1), Inches(5), Inches(3))
+card.text_frame.text = "한국어 카드 본문"
 apply_korean_formatting(prs, font_name="Pretendard")
 prs.save("output.pptx")
+
+# 기존 템플릿은 폰트를 생략하여 상속 보존
+# apply_korean_formatting(prs)
 ```
 
----
+## 검증
 
-## 디렉터리 구조
-
-```
-pptx-korean-formatting/
-├── SKILL.md                          # 에이전트 참조용 핵심 지침 (경량화)
-├── README.md                         # 저장소 소개 및 CLI 사용 가이드
-├── scripts/
-│   ├── __init__.py
-│   ├── fix_korean_pptx.py            # 고속 XML 후처리기 (lxml 기반)
-│   └── korean_pptx.py                # python-pptx용 헬퍼 모듈
-├── references/
-│   ├── openxml_reference.md          # OpenXML 스키마 상세 레퍼런스
-│   └── pptxgenjs.md                  # PptxGenJS (Node.js) 가이드
-└── tests/
-    └── test_korean_pptx.py           # 단위 및 회귀 테스트 스위트
+```bash
+python -X utf8 -B -m unittest discover -s tests -v
 ```
 
----
+`--verify`는 읽기 전용이며, 0=검사 범위 정상, 1=처리 오류, 2=서식 결함, 3=상속 미확인입니다. 보정 실행의 0은 저장 성공만 뜻합니다.
 
-## 라이선스
+문단/도형 목록 스타일까지만 상속을 해석합니다. 상위 마스터·테마의 유효 폰트는 미확인으로 보고하며, 폰트 설치·글리프·전체 스키마·실제 화면은 별도 확인합니다. 차트·SmartArt·노트 등 별도 파트는 보정하지 않습니다. 도구는 문자열 불릿 변환이나 여러 도형의 카드 병합을 하지 않습니다.
 
-[CC0 1.0 Universal](LICENSE) — 퍼블릭 도메인, 저작자 표시 의무 없음.
+## 이전 버전과 다른 점
+
+- 기본 실행은 Pretendard를 자동 주입하거나 테마 폰트를 바꾸지 않습니다.
+- 폰트 통일은 CLI의 `-f`, 헬퍼의 명시적 `font_name`으로 선택합니다.
+- Python `process_pptx`/`patch_xml_content`에서는 `default_font`만 넘겨도 강제 통일되지 않습니다. `force_font=True`를 함께 지정합니다.
+- 테마 변경은 `--update-theme`, 외국어·빈 문단·공유 목록 스타일 변경은 `--all-text`가 필요합니다.
+- 상속을 확정하지 못한 검증은 0 대신 3을 반환합니다. 자동화에서 이 상태를 결함과 구분하세요.
+
+[CC0 1.0 Universal](LICENSE)

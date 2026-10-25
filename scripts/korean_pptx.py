@@ -14,6 +14,11 @@ from pptx.enum.lang import MSO_LANGUAGE_ID
 from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 
+try:
+    from .fix_korean_pptx import HANGUL_RE, patch_tree
+except ImportError:
+    from fix_korean_pptx import HANGUL_RE, patch_tree
+
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 POST_LATIN_TAGS = [
     f"{{{A_NS}}}{t}"
@@ -81,7 +86,8 @@ def _insert_ea_to_prop(prop_elm, font_name):
 def set_korean_font_and_lang(target, font_name="Pretendard"):
     """
     Run, Paragraph 또는 Font 객체에 언어(ko-KR)와 폰트(latin + ea: East Asian)를 동시 설정.
-    한글이 맑은 고딕 등 시스템 기본 폰트로 강제 폴백되는 현상을 방지합니다.
+    명시적으로 지정하는 저수준 함수입니다. 기존 파일의 상속 보존에는
+    apply_korean_formatting(target)을 사용하세요. 폰트 설치/글리프는 별도 확인합니다.
     """
     font_obj = target if hasattr(target, "language_id") else getattr(target, "font", None)
     if font_obj is not None:
@@ -106,12 +112,10 @@ def set_korean_font_and_lang(target, font_name="Pretendard"):
         _insert_latin_to_prop(prop_elm, font_name)
         _insert_ea_to_prop(prop_elm, font_name)
 
-        # 문단 내 이미 생성된 런(예: p.text = "..." 직후)의 언어 태그를 ko-KR로 동기화
+        # 혼합 언어 문단에서 외국어 run의 명시적 언어는 유지합니다.
         for r in getattr(target, "runs", ()):
-            try:
+            if HANGUL_RE.search(r.text):
                 r.font.language_id = MSO_LANGUAGE_ID.KOREAN
-            except Exception:
-                pass
 
         end_para = p_elm.find(f"{{{A_NS}}}endParaRPr")
         if end_para is not None:
@@ -192,8 +196,8 @@ def create_korean_card(
     :param height: 높이 (Inches 또는 Pt)
     :param bg_color: 배경 색상 (RGBColor 또는 None=투명)
     :param border_color: 테두리 색상 (RGBColor 또는 None=없음)
-    :param line_width_pt: 테두리 두께 (Pt, 기본값 1pt)
-    :param margin_inch: 텍스트 내부 마진 (Inches, 기본값 0.3인치)
+    :param line_width_pt: 테두리 두께 (숫자, pt 단위, 기본값 1)
+    :param margin_inch: 텍스트 내부 마진 (숫자, inch 단위, 기본값 0.3)
     :param shape_type: MSO_SHAPE enum (기본값: RECTANGLE, 원형은 OVAL, 둥근 사각형은 ROUNDED_RECTANGLE 등)
     :param vertical_anchor: MSO_ANCHOR enum (미지정 시 OVAL은 MSO_ANCHOR.MIDDLE, 그 외는 MSO_ANCHOR.TOP 기본 적용)
     :param text_color: 기본 글자색 (RGBColor, 미지정 시 테마 텍스트 색 상속 / 어두운 배경이면 지정)
@@ -311,23 +315,15 @@ def _extract_text_frames(container):
     return tfs
 
 
-def apply_korean_formatting(target_obj, font_name="Pretendard"):
+def apply_korean_formatting(target_obj, font_name=None, *, all_text=False):
     """
     프레젠테이션(Presentation), 슬라이드(Slide), 도형(Shape), 표(Table),
-    또는 텍스트 프레임(TextFrame)을 전달받아 내부의 모든 텍스트에
-    언어 태그(ko-KR), 단어 줄바꿈 방지(eaLnBrk/latinLnBrk="0"), 동아시아 폰트를 일괄 적용합니다.
-    표(Table) 및 그룹 도형 내부 텍스트까지 재귀적으로 완벽히 지원합니다.
+    또는 TextFrame의 한국어 문단을 보정합니다. 기본값은 기존 폰트/상속 보존.
+    font_name을 명시하면 문단 기본 폰트를 지정하고 한국어 run의 폰트 override만
+    제거합니다. 외국어/빈 문단도 처리하려면 all_text=True를 사용합니다.
+    표/그룹을 순회하며 공유 마스터·레이아웃·테마는 수정하지 않습니다.
     """
-    tfs = _extract_text_frames(target_obj)
-    for tf in tfs:
-        tf.word_wrap = True
-        for p in tf.paragraphs:
-            set_word_break_prevention(p)
-            if p.runs:
-                for r in p.runs:
-                    set_korean_font_and_lang(r, font_name=font_name)
-                end_para = p._p.find(f"{{{A_NS}}}endParaRPr")
-                if end_para is not None:
-                    end_para.set("lang", "ko-KR")
-            else:
-                set_korean_font_and_lang(p, font_name=font_name)
+    if font_name is not None and (not font_name.strip() or font_name.startswith("+")):
+        raise ValueError("실제 폰트 이름을 지정하세요")
+    for tf in _extract_text_frames(target_obj):
+        patch_tree(tf._txBody, font_name=font_name, all_text=all_text)

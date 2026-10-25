@@ -107,9 +107,10 @@ class TestKoreanPptxHelper(unittest.TestCase):
         p = cell.text_frame.paragraphs[0]
         self.assertEqual(p._p.get_or_add_pPr().get("eaLnBrk"), "0")
         self.assertEqual(p._p.get_or_add_pPr().get("latinLnBrk"), "0")
-        ea = p.runs[0]._r.find(".//" + qualify(A_NS, "ea"))
+        ea = p._p.find(".//" + qualify(A_NS, "defRPr") + "/" + qualify(A_NS, "ea"))
         self.assertIsNotNone(ea)
         self.assertEqual(ea.get("typeface"), "Pretendard")
+        self.assertIsNone(p.runs[0]._r.find(".//" + qualify(A_NS, "ea")))
 
     def test_apply_korean_formatting_presentation(self):
         tb = self.slide.shapes.add_textbox(Inches(1), Inches(1), Inches(2), Inches(1))
@@ -162,7 +163,8 @@ class TestFixKoreanPptxCli(unittest.TestCase):
         root = ET.fromstring(new_xml)
         rPr = root.find(".//" + qualify(A_NS, "rPr"))
         tags = [c.tag.split("}")[-1] for c in rPr]
-        self.assertEqual(tags, ["latin", "ea", "hlinkClick"])
+        # Preserve the existing run font/hyperlink; do not invent EA overrides.
+        self.assertEqual(tags, ["latin", "hlinkClick"])
 
     def test_full_pipeline_process_pptx(self):
         temp_dir = tempfile.mkdtemp()
@@ -182,9 +184,11 @@ class TestFixKoreanPptxCli(unittest.TestCase):
         code_fix = process_pptx(pptx_path)
         self.assertEqual(code_fix, 0)
 
-        # 3. 보정 후 verify는 완벽 적용 (코드 0)
+        # 3. 테마/마스터 폰트는 추정하지 않고 추가 확인(3)으로 보고
         code_after = process_pptx(pptx_path, verify_only=True)
-        self.assertEqual(code_after, 0)
+        self.assertEqual(code_after, 3)
+        self.assertEqual(process_pptx(pptx_path, default_font="NanumGothic", force_font=True), 0)
+        self.assertEqual(process_pptx(pptx_path, verify_only=True), 0)
 
 
 class TestRegressions(unittest.TestCase):
@@ -208,7 +212,7 @@ class TestRegressions(unittest.TestCase):
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                 code = process_pptx(path, verify_only=verify_only)
             buf.flush()
-            self.assertIn(code, (0, 2))
+            self.assertIn(code, (0, 2, 3))
 
     # 2. 네임스페이스 접두사와 mc:Ignorable/Requires 참조가 보존되어야 함
     def test_patch_preserves_namespace_prefixes(self):
@@ -221,7 +225,8 @@ class TestRegressions(unittest.TestCase):
         self.assertIn('xmlns:v="urn:schemas-microsoft-com:vml"', out)
         self.assertIn('mc:Ignorable="p14 v"', out)
         self.assertIn('<mc:Choice Requires="p14">', out)
-        self.assertIn('<a:pPr eaLnBrk="0" latinLnBrk="0"/>', out)
+        parsed = ET.fromstring(new_xml)
+        self.assertEqual(parsed.find(".//" + qualify(A_NS, "pPr")).get("eaLnBrk"), "0")
         self.assertNotIn("ns0", out)
 
     # 3. 카드 기본 스타일이 흰색 글자/그림자를 강제하지 않고 다단 레벨 색상을 상속해야 함
@@ -264,12 +269,12 @@ class TestRegressions(unittest.TestCase):
         tags = [c.tag.split("}")[-1] for c in pPr]
         self.assertEqual(tags, ["spcBef", "buClrTx", "buSzTx", "buChar", "tabLst", "defRPr"])
 
-    # 5. latin 테마 참조/한글 미지원 폰트를 ea에 그대로 복사하지 않아야 함
+    # 5. 테마 토큰만 대응시키며 폰트 이름으로 글리프 지원을 추정하지 않음
     def test_resolve_ea_typeface(self):
         self.assertEqual(resolve_ea_typeface("+mn-lt", "Pretendard"), "+mn-ea")
         self.assertEqual(resolve_ea_typeface("+mj-lt", "Pretendard"), "+mj-ea")
-        self.assertEqual(resolve_ea_typeface("Calibri", "Pretendard"), "Pretendard")
-        self.assertEqual(resolve_ea_typeface(None, "Pretendard"), "Pretendard")
+        self.assertEqual(resolve_ea_typeface("Calibri", "Pretendard"), "Calibri")
+        self.assertIsNone(resolve_ea_typeface(None, "Pretendard"))
         self.assertEqual(resolve_ea_typeface("Noto Sans KR", "Pretendard"), "Noto Sans KR")
         self.assertEqual(resolve_ea_typeface("맑은 고딕", "Pretendard"), "맑은 고딕")
         self.assertEqual(resolve_ea_typeface("NanumGothic", "Pretendard"), "NanumGothic")
@@ -283,7 +288,7 @@ class TestRegressions(unittest.TestCase):
         _, new_xml, _ = patch_xml_content(xml_str.encode("utf-8"))
         root = ET.fromstring(new_xml)
         eas = [e.get("typeface") for e in root.iter(qualify(A_NS, "ea"))]
-        self.assertEqual(eas, ["+mj-ea", "+mn-ea"])
+        self.assertEqual(eas, ["+mn-ea"])
 
     # 6. Table 객체를 직접 전달해도 적용되어야 함
     def test_apply_korean_formatting_table_object(self):
@@ -291,6 +296,7 @@ class TestRegressions(unittest.TestCase):
         slide = prs.slides.add_slide(prs.slide_layouts[6])
         gf = slide.shapes.add_table(1, 2, Inches(1), Inches(1), Inches(4), Inches(1))
         gf.table.cell(0, 0).text = "표 셀"
+        gf.table.cell(0, 1).text = "두 번째 셀"
 
         apply_korean_formatting(gf.table, font_name="Pretendard")
 
@@ -308,6 +314,7 @@ class TestRegressions(unittest.TestCase):
         p.text = "문단 레벨 나눔고딕 상속"
         set_word_break_prevention(p)
         set_korean_font_and_lang(p, "NanumGothic")
+        tb.text_frame.word_wrap = True
 
         xml_bytes = ET.tostring(slide._element)
         issues = verify_xml_content(xml_bytes)
@@ -318,23 +325,27 @@ class TestRegressions(unittest.TestCase):
         root = ET.fromstring(patched_xml)
         for ea in root.iter(qualify(A_NS, "ea")):
             self.assertEqual(ea.get("typeface"), "NanumGothic")
+        for run in root.iter(qualify(A_NS, "r")):
+            self.assertIsNone(run.find(".//" + qualify(A_NS, "ea")))
 
-    # 8. 기존 잘못된 <a:ea typeface="Calibri"/> 교정 및 <a:latin>/<a:ea> 쌍 동기화
+    # 8. 명시적 폰트 통일은 문단 기본값에 적용하고 run 폰트 override 제거
     def test_patch_fixes_non_korean_ea_and_syncs_latin(self):
         xml_str = """<a:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
 <a:p><a:r><a:rPr><a:latin typeface="Calibri"/><a:ea typeface="Calibri"/></a:rPr><a:t>2026년 AI 성장</a:t></a:r></a:p>
 <a:p><a:r><a:rPr lang="en-US"/><a:t>폰트 미지정 런</a:t></a:r></a:p>
 </a:txBody>"""
-        _, new_xml, _ = patch_xml_content(xml_str.encode("utf-8"), default_font="Pretendard")
+        _, new_xml, _ = patch_xml_content(xml_str.encode("utf-8"), default_font="Pretendard", force_font=True)
         root = ET.fromstring(new_xml)
         for rPr in root.iter(qualify(A_NS, "rPr")):
-            self.assertEqual(rPr.find(qualify(A_NS, "latin")).get("typeface"), "Pretendard")
-            self.assertEqual(rPr.find(qualify(A_NS, "ea")).get("typeface"), "Pretendard")
+            self.assertIsNone(rPr.find(qualify(A_NS, "latin")))
+            self.assertIsNone(rPr.find(qualify(A_NS, "ea")))
+        for prop in root.iter(qualify(A_NS, "defRPr")):
+            self.assertEqual(prop.find(qualify(A_NS, "ea")).get("typeface"), "Pretendard")
 
-    # 9. -f 옵션(force_font) 사용 시 테마(theme1.xml) 및 마스터(txStyles)까지 일괄 교체
+    # 9. 테마/공유 스타일 변경은 각각 명시적 옵션이 있어야 함
     def test_force_font_updates_theme_and_master_styles(self):
         path = self._make_pptx()
-        code = process_pptx(path, default_font="NanumGothic", force_font=True)
+        code = process_pptx(path, default_font="NanumGothic", force_font=True, update_theme=True, all_text=True)
         self.assertEqual(code, 0)
 
         with zipfile.ZipFile(path, "r") as zin:

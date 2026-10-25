@@ -1,82 +1,63 @@
-# OpenXML 한국어 서식 규격 레퍼런스
+# OpenXML 한국어 서식 참조
 
-PowerPoint 프레젠테이션의 기반 규격인 OpenXML (ISO/IEC 29500-1)에서 한글 타이포그래피와 관련된 태그 구조 및 스키마 요구사항입니다.
+이 도구는 Transitional DrawingML 네임스페이스 `http://schemas.openxmlformats.org/drawingml/2006/main`을 처리한다. 아래는 주요 구조 참고이며 전체 ISO 스키마 검증을 대체하지 않는다.
 
----
-
-## 1. 단어 단위 줄바꿈 방지 (`<a:pPr>` 및 `<a:lvl1pPr>~<a:lvl9pPr>`)
-
-한글 단어가 음절 단위로 분리되는 현상을 막기 위해 문단 프로퍼티(`<a:pPr>`)와 마스터/도형 스타일의 레벨별 문단 프로퍼티(`<a:defPPr>`, `<a:lvl1pPr>` ~ `<a:lvl9pPr>`)에 다음 두 속성을 지정합니다.
+## 줄바꿈
 
 ```xml
-<a:pPr eaLnBrk="0" latinLnBrk="0"/>
+<p:txBody>
+  <a:bodyPr wrap="square"/>
+  <a:lstStyle/>
+  <a:p>
+    <a:pPr eaLnBrk="0" latinLnBrk="0"/>
+    <a:r><a:t>한국어 문장</a:t></a:r>
+  </a:p>
+</p:txBody>
 ```
 
-* `eaLnBrk="0"`: 동아시아 문자(한글/한자/가나)의 단어 중간 줄바꿈 방지 (Break words at syllable boundary 비활성화)
-* `latinLnBrk="0"`: 서양 문자(영문/숫자)의 단어 중간 줄바꿈 방지
-* 텍스트 프레임의 `word_wrap="1"`은 그대로 유지해야 텍스트가 박스 바깥으로 넘치지 않습니다.
-* 슬라이드 마스터(`slideMaster1.xml`)의 `<p:txStyles>`(`titleStyle`, `bodyStyle`, `otherStyle`) 내부 `<a:lvl1pPr>` 등에는 기본적으로 `eaLnBrk="1"`이 설정되어 있으므로 함께 `eaLnBrk="0"`으로 보정해야 상속 시 줄바꿈이 깨지지 않습니다.
+예제의 `p`/`a` 접두사는 상위 요소에서 선언되어 있다고 가정한다. Python `word_wrap=True`와 XML `wrap="square"`를 혼동하지 않는다. `eaLnBrk`는 동아시아 단어의 중간 줄바꿈, `latinLnBrk`는 서양 단어의 중간 줄바꿈을 제어한다. Boolean `0`과 `false`는 동일하게 취급한다.
 
----
+문단 속성은 `a:pPr`, 도형 목록 스타일은 `a:lstStyle/a:lvl1pPr`부터 `lvl9pPr`, 마스터 텍스트 스타일은 `p:txStyles`에 위치할 수 있다. 공유 스타일에 값이 있더라도 문단의 명시적 값이 우선한다. 한국어 정책을 공유 스타일 전체에 적용하는 것은 외국어에도 영향을 줄 수 있다.
 
-## 2. 동아시아 폰트 명시 및 `<a:rPr>` / `<a:defRPr>` 스키마 순서
+## 폰트와 상속
 
-OpenXML 규격상 `<a:rPr>` 또는 `<a:defRPr>` 내에 `<a:latin>`만 정의되어 있으면, PowerPoint는 한글 문자를 시스템 기본 동아시아 폰트(맑은 고딕, 굴림 등)로 강제 폴백(Fallback)시킵니다. 반대로 `<a:ea>`만 정의하고 `<a:latin>`을 누락하거나 영문 폰트(`Calibri` 등)로 두면 한 문장 내 영문·숫자와 한글의 폰트가 달라집니다. 따라서 서양 폰트와 동아시아 폰트를 항상 쌍으로 명시해야 합니다.
+폰트는 run의 `a:rPr`, 문단·목록 스타일의 `a:defRPr`, 입력 끝의 `a:endParaRPr` 등에 존재한다. 낮은 레벨에 같은 폰트 이름을 복사하면 상속이 고정 override로 바뀐다. 속성 부재와 명시적 값은 구분한다.
 
-### `CT_TextCharacterProperties` (`<a:rPr>`, `<a:defRPr>`, `<a:endParaRPr>`) 자식 요소 순서:
+- `a:latin`: 라틴 문자 폰트
+- `a:ea`: 동아시아 폰트
+- `+mn-lt`/`+mj-lt`: 본문/제목 라틴 테마 참조
+- `+mn-ea`/`+mj-ea`: 본문/제목 동아시아 테마 참조
+
+EA 요소에 잘못 기록된 `+mn-lt`/`+mj-lt`는 대응하는 EA 토큰으로 수정한다. EA 속성이 없을 때에는 상위 상속을 먼저 고려한다. 다른 영문·한글 폰트 조합도 유효하다.
+
+테마의 `fontScheme/majorFont`, `minorFont`는 `latin`, `ea`, `cs`, 스크립트별 `font` 매핑을 가진다. 테마의 빈 `ea typeface`와 정상적인 `font script="Hang"` 조합을 오류로 간주하지 않는다. 기본 CLI는 이 매핑을 변경하지 않는다.
+
+### 문자 속성의 주요 자식 순서
+
+`ln → Fill choice → Effect choice → highlight → 밑줄 속성 → latin → ea → cs → sym → hlinkClick → hlinkMouseOver → rtl → extLst`
+
+각 요소는 선택 사항이다. 폰트를 추가할 때 하이퍼링크 뒤에 append하지 않는다. 기존 잘못된 순서를 무조건 자동 복구하지 않으며 검증기가 주요 폰트 순서 이상을 보고한다.
+
+## 불릿과 문단 속성 순서
+
 ```xml
-<a:rPr lang="ko-KR">
-  <!-- 1. 테두리 및 채우기 (선택) -->
-  <a:ln>...</a:ln>
-  <a:solidFill>...</a:solidFill>
-  <!-- 2. 효과, 하이라이트, 밑줄 (선택) -->
-  <a:effectLst>...</a:effectLst>
-  <a:highlight>...</a:highlight>
-  <a:uLn>...</a:uLn>
-  <a:uFill>...</a:uFill>
-  <!-- 3. 폰트 지정 (반드시 latin -> ea -> cs -> sym 순서) -->
-  <a:latin typeface="Pretendard"/>
-  <a:ea typeface="Pretendard"/>
-  <a:cs typeface="Pretendard"/>
-  <a:sym typeface="..."/>
-  <!-- 4. 하이퍼링크 및 확장 (반드시 폰트 뒤에 위치) -->
-  <a:hlinkClick r:id="rId2"/>
-  <a:hlinkMouseOver r:id="rId3"/>
-  <a:rtl val="0"/>
-  <a:extLst>...</a:extLst>
-</a:rPr>
-```
-
-* **테마 폰트 참조 주의**: `<a:latin typeface="+mn-lt"/>`(`+mj-lt`)인 경우 `<a:ea>`에는 `+mn-ea`(`+mj-ea`)를 대응시켜야 하며, `ppt/theme/theme1.xml`의 `<a:fontScheme>` 내 `<a:ea>`와 `<a:font script="Hang"/>`에도 한글 폰트가 지정되어 있어야 `'맑은 고딕'`으로 폴백되지 않습니다.
-
----
-
-## 3. 네이티브 불릿 및 `<a:pPr>` 스키마 순서 (ISO/IEC 29500-1 규격)
-
-OpenXML 스키마 규격(`CT_TextParagraphProperties`)상 `<a:pPr>` 내부 자식 요소들은 엄격한 순서를 따라야 합니다. 순서가 어긋나거나 동일 그룹(Choice) 요소가 중복되면 PowerPoint를 열 때 **"프레젠테이션 복구" 경고**가 발생합니다.
-
-### 올바른 순서:
-```xml
-<a:pPr marL="274320" indent="-182880" eaLnBrk="0" latinLnBrk="0">
-  <!-- 1. 줄 간격 및 문단 간격 (선택: 반드시 불릿보다 앞에 위치) -->
-  <a:lnSpc>...</a:lnSpc>
-  <a:spcBef>...</a:spcBef>
-  <a:spcAft>...</a:spcAft>
-  <!-- 2. 불릿 색상 그룹 (buClrTx 또는 buClr 중 택1) -->
+<a:pPr marL="274320" indent="-182880">
+  <a:lnSpc><a:spcPct val="100000"/></a:lnSpc>
+  <a:spcBef><a:spcPts val="0"/></a:spcBef>
+  <a:spcAft><a:spcPts val="600"/></a:spcAft>
   <a:buClrTx/>
-  <!-- 3. 불릿 크기 그룹 (buSzTx, buSzPct, buSzPts 중 택1) -->
   <a:buSzTx/>
-  <!-- 4. 불릿 폰트 그룹 (buFontTx 또는 buFont 중 택1, 선택) -->
   <a:buFontTx/>
-  <!-- 5. 불릿 종류 그룹 (buNone, buAutoNum, buChar, buBlip 중 택1) -->
   <a:buChar char="•"/>
-  <!-- 6. 탭 리스트 (선택) -->
-  <a:tabLst>...</a:tabLst>
-  <!-- 7. 기본 런 프로퍼티 (반드시 불릿과 탭 리스트 뒤에 위치) -->
-  <a:defRPr lang="ko-KR">...</a:defRPr>
-  <!-- 8. 확장 리스트 (선택) -->
-  <a:extLst>...</a:extLst>
+  <a:tabLst/>
+  <a:defRPr lang="ko-KR"/>
 </a:pPr>
 ```
 
-> **주의**: `defRPr`나 `tabLst` 뒤에 `buChar`를 `append`하면 안 되며, 반드시 `spcBef`/`spcAft` 뒤이자 `tabLst`/`defRPr` 앞에 위치해야 합니다.
+불릿 그룹마다 choice는 하나다: 색상(buClrTx/buClr), 크기(buSzTx/buSzPct/buSzPts), 폰트(buFontTx/buFont), 종류(buNone/buAutoNum/buChar/buBlip). 불릿은 `tabLst`/`defRPr`/`extLst`보다 앞에 둔다. `marL`과 `indent`는 EMU 단위다.
+
+## 검증기의 해석 경계
+
+문단의 직접 속성과 같은 도형의 현재 목록 레벨·기본 목록 스타일까지 읽는다. 레이아웃/마스터/테마를 가로지르는 유효 폰트는 `unknown_*`로 보고한다. 직접 지정된 빈/잘못된 EA 토큰을 정상 상위 폰트로 덮어 해석하지 않는다. 폰트 이름만으로 글리프를 판정하지 않는다.
+
+[python-pptx 텍스트 API](https://python-pptx.readthedocs.io/en/latest/api/text.html) · [Microsoft OpenXML 문단 속성](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.drawing.paragraphproperties)

@@ -1,86 +1,64 @@
-# PptxGenJS 한국어 서식 가이드
+# PptxGenJS 한국어 서식
 
-Node.js 또는 브라우저 환경에서 `pptxgenjs`를 사용할 때 한국어 텍스트 서식을 올바르게 구성하기 위한 참조 문서입니다.
+PptxGenJS 4.0.1 생성 결과를 기준으로 확인했다. 다른 버전에서는 저장된 XML도 확인한다.
 
----
-
-## 1. 언어 속성 및 단어 단위 줄바꿈 (CLI 후처리 필수)
-
-PptxGenJS에서는 `addText` 옵션 객체에 언어 코드(`lang: "ko-KR"`)와 폰트(`fontFace: "Pretendard"`)를 지정합니다.
+## 언어·폰트·줄바꿈
 
 ```javascript
-// 공통 옵션 객체 정의
-const koreanTextOptions = {
-  lang: "ko-KR",
-  fontFace: "Pretendard",
-  fontSize: 14,
-  color: "333333"
+const koreanOptions = {
+  lang: "ko-KR", fontFace: "Pretendard",
+  fontSize: 14, color: "333333"
 };
-
-// 텍스트 추가 시 공통 옵션 병합
-slide.addText("한국어 프레젠테이션 본문 텍스트입니다.", {
-  x: 1.0,
-  y: 1.0,
-  w: 8.0,
-  h: 1.5,
-  ...koreanTextOptions
+slide.addText("한국어 본문입니다.", {
+  x: 1, y: 1, w: 8, h: 1.5, wrap: true, ...koreanOptions
 });
 ```
 
-> **주의 1 (자동 줄바꿈 유지)**: 텍스트 상자의 자동 줄바꿈은 기본 활성화되어 있으므로 `wrap: false`로 끄지 마십시오.
->
-> **주의 2 (`eaLnBrk="0"` 후처리 필수)**: PptxGenJS 엔진은 OpenXML `<a:pPr>`에 `eaLnBrk="0"`(단어 단위 줄바꿈) 속성을 생성하는 옵션이 없습니다. 따라서 PptxGenJS로 `.pptx` 파일을 생성·저장한 직후 반드시 CLI 후처리기를 1회 실행해야 한글 단어 쪼개짐과 폰트 폴백이 완벽히 방지됩니다:
-> ```bash
-> python <skill-path>/scripts/fix_korean_pptx.py output.pptx
-> ```
-
----
-
-## 2. 네이티브 불릿 목록 (서식 상속 준수)
-
-PptxGenJS는 엔진 자체에서 불릿 기호와 Hanging Indent를 처리합니다. 유니코드 기호(`•`)를 텍스트 문자열에 직접 넣지 말고 `bullet` 옵션을 사용하며, 공통 서식(`lang`, `fontFace`, `fontSize`, `color`)은 최상위 옵션에서 상속시킵니다.
+4.0.1의 일반 텍스트 생성에서 `eaLnBrk="0"`은 지정되지 않는다. 단어 단위 줄바꿈이 필요한 한국어 문단은 저장 완료 후 보정한다.
 
 ```javascript
-slide.addText([
-  { text: "첫 번째 항목 내용입니다.", options: { bullet: true } },
-  { text: "두 번째 항목 내용입니다.", options: { bullet: { code: "2022" } } }
-], {
-  x: 1.0,
-  y: 1.0,
-  w: 8.0,
-  h: 2.0,
-  lang: "ko-KR",
-  fontSize: 14,
-  fontFace: "Pretendard",
-  color: "333333"
-});
+await pptx.writeFile({ fileName: "output.pptx" });
 ```
 
----
+```bash
+python "<skill-path>/scripts/fix_korean_pptx.py" output.pptx
+python "<skill-path>/scripts/fix_korean_pptx.py" output.pptx --verify
+```
 
-## 3. 일체형 단일 카드 도형 (Single Shape Card)
+후처리는 파일 저장을 기다린 다음 실행한다. 기본 보정은 폰트·테마를 유지한다. 임의 폰트 설치나 글리프 지원을 보장하지 않는다.
 
-배경 사각형 위에 텍스트 박스를 별도로 얹지 않고, `shape` 옵션을 사용하여 단일 도형으로 생성합니다. 텍스트 배열에서 줄바꿈을 할 때는 `breakLine: true`만 사용하고 문자열 끝에 `\n`을 중복으로 넣지 않도록 주의하십시오.
+## 공통 옵션과 파일의 서식 상속은 다르다
+
+최상위 옵션은 생성 코드 중복을 줄인다. 하지만 PptxGenJS 4.0.1은 공통 폰트·크기·색상도 각 run의 `rPr`에 기록할 수 있다. 최상위 옵션 사용만으로 마스터 상속이 보장되지는 않는다.
+
+마스터/테마를 바꿀 때 함께 변해야 하는 요소에는 테마 참조나 실제 상속 구조를 사용하고 생성 XML로 확인한다. 고정 RGB는 문단/run 위치와 관계없이 테마 색 변경을 따르지 않는다. 기본 CLI는 의도된 직접 서식을 제거하지 않는다. 명시적 `-f`도 폰트만 정리하며 색상·크기는 바꾸지 않는다.
+
+## 네이티브 불릿
 
 ```javascript
-// margin 배열은 [top, right, bottom, left] (pt 단위) 또는 단일 숫자
 slide.addText([
-  { text: "카드 제목", options: { fontSize: 18, bold: true, color: "111827", breakLine: true } },
-  { text: "카드 본문 설명 내용입니다. 단일 도형으로 생성되어 사용자가 이동하거나 편집할 때 일체형으로 유지됩니다." }
+  { text: "첫 번째 항목입니다.", options: { bullet: true } },
+  { text: "두 번째 항목입니다.", options: { bullet: { code: "2022" } } }
+], { x: 1, y: 1, w: 8, h: 2, ...koreanOptions });
+```
+
+4.0.1에서 두 문단·두 불릿이 생성된다. 긴 항목의 둘째 줄 들여쓰기는 렌더링하여 확인한다. 일반 rich text 줄바꿈에는 `breakLine: true`를 사용하고 동일 경계에 `\n`을 중복하지 않는다.
+
+## 단일 카드 도형
+
+```javascript
+slide.addText([
+  { text: "카드 제목", options: { fontSize: 18, bold: true, breakLine: true } },
+  { text: "본문 설명입니다." }
 ], {
   shape: pptx.ShapeType.rect,
-  x: 1.0,
-  y: 1.5,
-  w: 4.5,
-  h: 3.0,
-  fill: { color: "F8F9FA" },
-  line: { color: "DCE1E6", width: 1 },
-  margin: 15,
-  align: "left",
-  valign: "top",
-  lang: "ko-KR",
-  fontFace: "Pretendard",
-  fontSize: 13,
-  color: "4B5563"
+  x: 1, y: 1.5, w: 4.5, h: 3,
+  fill: { color: "F8F9FA" }, line: { color: "DCE1E6", width: 1 },
+  margin: 15, align: "left", valign: "top", wrap: true,
+  ...koreanOptions
 });
 ```
+
+`margin`은 pt 단위이며 배열은 [top, right, bottom, left]다. 위 예제는 제목과 본문이 하나의 도형에 들어간다. 독립적인 공간 배치가 필요하면 그룹화를 선택한다.
+
+[공식 텍스트 API](https://gitbrent.github.io/PptxGenJS/docs/api-text/)

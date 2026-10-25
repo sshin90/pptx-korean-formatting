@@ -1,119 +1,119 @@
 ---
 name: pptx-korean-formatting
-description: "Supplementary Korean-language PowerPoint formatting rules and fast CLI tools. Use whenever a .pptx, .potx, or slide contains Korean text. Enforces ko-KR language metadata, word-boundary wrapping (eaLnBrk=0), East Asian fonts, formatting inheritance (master/paragraph > run), native hanging bullets, and single-shape cards. Includes an instant one-click CLI fixer."
+description: "Supplementary Korean PowerPoint formatting for creating or editing PPTX/POTX files with Korean text. Preserve existing fonts and inheritance, control Korean word wrapping, create native bullets and editable single-shape cards, and run scoped XML checks. Includes python-pptx helpers and an optional CLI postprocessor."
 license: CC0-1.0
 metadata:
-  compatibility: "Works with python-pptx, pure OpenXML, or any PowerPoint generator."
+  compatibility: "Python 3.10+ and lxml for CLI; python-pptx for helpers. Transitional PPTX/POTX."
 ---
 
-# PPTX 한국어 서식 규칙 (Korean PPTX Formatting)
+# PPTX 한국어 서식
 
-파워포인트에 한글이 포함될 때 글자 쪼개짐, 폰트 깨짐(굴림/맑은 고딕 강제 폴백), 서식 상속 단절, 불릿 들여쓰기 붕괴를 방지하기 위한 핵심 지침과 고속 보정 도구를 제공합니다.
+기본 PPTX 제작 도구에 보완 적용한다. 한국어 줄바꿈, 동아시아 폰트, 서식 상속, 불릿 들여쓰기, 도형 편집성을 다룬다. 기존 템플릿의 폰트·테마·부분 강조와 사용자가 선택한 디자인을 먼저 보존한다.
 
----
+## 작업 선택
 
-## ⚡ 빠른 시작 (Fast-Path: 가장 빠른 적용법)
+| 목적 | 적용 |
+|---|---|
+| 기존 파일의 한국어 언어·줄바꿈 보정 | CLI 기본 모드. 기존 폰트와 테마는 유지 |
+| 지정 폰트로 통일 | `-f "폰트명"`. 한국어가 있는 문단의 기본 폰트 설정 |
+| 공용 테마까지 통일 | `-f "폰트명" --update-theme`. 전체 문서에만 사용 |
+| 숫자 필드·외국어·빈 문단·공유 목록 스타일도 한국어 정책 적용 | 의도된 전체 통일 작업일 때만 `--all-text` |
+| 신규 카드·불릿 생성 | Python 헬퍼 또는 제작 라이브러리의 네이티브 기능 |
+| 생성된 파일 점검 | `--verify`와 PowerPoint 화면 확인 |
 
-### 1. [초고속 권장] 편집 완료 후 원클릭 CLI 보정 (0.1초 소요)
-일반적인 방식으로 슬라이드 텍스트나 도형, 표를 수정한 뒤 제공된 CLI 도구를 실행하면 모든 한글 서식이 0.1초 만에 자동 보정됩니다.
+`<skill-path>`는 이 SKILL.md가 있는 실제 폴더로 치환한다. 경로에 공백이 있으면 따옴표로 감싼다.
 
 ```bash
-# 전체 슬라이드, 표, 마스터 일괄 보정 (in-place)
-python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx
+# 기본: 한국어 문단 보정, 폰트/테마 보존. 검토용 출력 파일 생성
+python "<skill-path>/scripts/fix_korean_pptx.py" input.pptx -o output.pptx
 
-# 특정 슬라이드만 고속 보정 (프레젠테이션 표시 순서 1-based 매핑)
-python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx --slide 2
+# 표시 순서 기준 2번 슬라이드만 지정 폰트로 통일
+python "<skill-path>/scripts/fix_korean_pptx.py" input.pptx --slide 2 -f "Pretendard" -o output.pptx
 
-# 특정 폰트로 지정 보정 (슬라이드/마스터 및 테마 폰트까지 일괄 교체)
-python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx -f "Pretendard"
+# 읽기 전용 점검
+python "<skill-path>/scripts/fix_korean_pptx.py" output.pptx --verify
 
-# 서식 누락 여부 정밀 진단 (문단 레벨 상속 포함 검증)
-python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx --verify
+# 지정 폰트까지 확인
+python "<skill-path>/scripts/fix_korean_pptx.py" output.pptx --verify -f "Pretendard"
+
+# 사용자가 전체 문서의 테마/외국어/공유 스타일 통일을 원할 때
+python "<skill-path>/scripts/fix_korean_pptx.py" input.pptx -f "Pretendard" --all-text --update-theme -o output.pptx
 ```
 
-> **장점**: 에이전트가 긴 헬퍼 함수를 매번 만들거나 복잡한 XML을 파싱할 필요가 없어 **작업 시간이 80% 이상 단축**되며, 마스터(`txStyles`)/레이아웃/테마(`theme1.xml`)/표/그룹도형/하이퍼링크 스키마 규격까지 100% 자동 준수됩니다.
+`-o`를 생략하면 원본을 교체한다. XML 오류나 저장 실패 시 원본/기존 출력은 보존한다. `--slide`는 공유 마스터·레이아웃·테마를 수정하지 않는다. `--update-theme`은 `--slide`, `--no-masters`와 병용할 수 없고 `-f`가 필요하다. 테마 변경은 다른 언어와 테마를 공유하는 요소의 표시에도 영향을 줄 수 있다.
 
-### 2. 파이썬(`python-pptx`) 신규 생성 시 모듈 임포트
-신규 슬라이드를 직접 생성할 때는 스킬에 내장된 헬퍼 모듈을 임포트하여 사용합니다.
+## 핵심 원칙
+
+### 1. 한국어 언어와 줄바꿈
+
+한국어 텍스트에는 `ko-KR`을 적용하고, 단어 단위 줄바꿈이 필요한 문단에 `eaLnBrk="0"`, `latinLnBrk="0"`을 사용한다. 텍스트 상자의 자동 줄바꿈은 Python에서 `word_wrap=True`, XML에서 `a:bodyPr wrap="square"`다.
+
+CLI는 한국어를 포함한 문단과 그 텍스트 프레임에 적용한다. 같은 프레임의 다른 문단도 프레임 줄바꿈 변경의 영향을 받는다. 외국어 전용 문단과 숫자 필드의 언어는 기본 보존하며, `--all-text`는 의도된 예외다. 한 run 안의 한영 혼합 문자열은 run 단위로 처리한다. 긴 어절·상자 높이·폰트 대체에 의한 넘침은 화면에서 확인한다.
+
+### 2. 동아시아 폰트와 상속
+
+`python-pptx`의 `font.name`은 Latin 폰트를 설정하므로, 신규 생성에서 동아시아 폰트를 직접 지정할 때는 `a:ea`도 설정한다. 다만 `a:ea`가 없다는 이유만으로 오류라고 판단하지 않는다. 문단·목록 스타일·레이아웃·마스터·테마에서 상속할 수 있다.
+
+기존 폰트 이름만으로 한글 지원 여부를 추정해 교체하지 않는다. 의도된 영문/한글 폰트 조합은 허용한다. 폰트 설치·글리프·임베딩 여부는 별도 확인하며, 맑은 고딕도 정상적인 선택이다.
+
+공통 서식은 가능한 한 상위 스타일에서 상속한다. 개별 run에는 부분 강조 등 필요한 예외만 둔다. 테마 변경을 따라야 하는 색상은 고정 RGB 대신 테마 색 참조를 사용한다. 문단에 고정 폰트나 RGB를 지정해도 그 속성은 마스터/테마의 변경을 덮어쓴다.
+
+CLI 기본 모드는 없는 run 폰트를 생성하지 않는다. `-f`는 문단 기본 Latin/EA 폰트를 지정하고 대상 한국어 run의 폰트 override를 제거한다. 굵기·색상·하이퍼링크와 외국어 run의 명시적 폰트는 유지한다. 혼합 문단에서 폰트가 없는 영문 run도 새 문단 기본 폰트를 상속한다. 심볼 폰트가 직접 지정된 run은 제외한다. 기존의 run 폰트를 임의로 상속형으로 전환하지 않으므로, 기본 보정만으로 과거의 직접 서식이 제거되지는 않는다.
+
+`text_frame.text = "..."`는 로컬 문단/run 내용을 교체해 그 서식을 잃을 수 있다. placeholder의 레이아웃·마스터 관계까지 사라지는 것은 아니다. 부분 수정에는 기존 run의 텍스트 교체 등 보존 가능한 방법을 선택한다.
+
+### 3. 네이티브 불릿
+
+문자열 앞에 `•`를 붙이기보다 네이티브 불릿과 `marL`/`indent`를 사용한다. `a:pPr` 안에서 불릿 요소는 `tabLst`/`defRPr`보다 앞에 있어야 하며, 불릿 종류 choice는 하나만 둔다. Python에서는 `set_native_bullet()`을 사용한다.
+
+### 4. 편집 가능한 단일 도형
+
+단순 카드·원형·배지는 도형 자체의 텍스트 프레임을 사용한다. 제목/본문은 문단별 서식으로 구분한다. 좌우 분할, 상하 양끝 배치, 독립 아이콘·버튼처럼 별도 위치 제어가 필요하면 여러 도형을 그룹화한다. 이는 편집성 기본 원칙이며 사용자의 배치 요구를 제한하지 않는다.
+
+## Python 헬퍼
+
+스킬 폴더를 Python 모듈 검색 경로에 추가한 뒤 사용한다. 기존 템플릿에는 `font_name` 생략을 기본으로 한다.
 
 ```python
 import sys
-# sys.path.insert(0, "<skill-path>")  # 필요 시 추가
+sys.path.insert(0, "<skill-path>")
 from scripts.korean_pptx import (
-    set_korean_font_and_lang,   # 언어(ko-KR)와 폰트(latin + ea) 동시 지정 (문단/run 모두 지원)
-    set_word_break_prevention,  # 단어 단위 줄바꿈 (eaLnBrk="0")
-    set_native_bullet,          # 스키마 순서가 보장된 네이티브 불릿
-    create_korean_card,         # 일체형 단일 카드/도형 (사각형, 원형 OVAL 등 지원)
-    create_korean_shape,        # 단일 도형 생성 헬퍼 별칭
-    apply_korean_formatting     # prs/slide/table/shape 재귀 일괄 적용
+    apply_korean_formatting, set_korean_font_and_lang,
+    set_word_break_prevention, set_native_bullet,
+    create_korean_card, create_korean_shape,
 )
 
-# 프레젠테이션 전체(표 및 그룹도형 포함) 원클릭 일괄 적용:
-apply_korean_formatting(prs, font_name="Pretendard")
+apply_korean_formatting(prs)  # 기존 폰트와 상속 보존
+# 폰트 통일이 요청된 경우:
+apply_korean_formatting(slide, font_name="Pretendard")
 ```
 
----
+헬퍼는 Presentation/Slide/Shape/Table/GroupShape/TextFrame을 순회한다. 마스터·레이아웃·테마는 수정하지 않는다. `set_korean_font_and_lang(paragraph, font_name)`은 명시적 문단 폰트 설정이며 기존 run 폰트 예외를 제거하지 않는다. 새 빈 카드에 텍스트를 채운 뒤 언어·폰트·줄바꿈을 적용한다.
 
-## 📋 핵심 서식 5대 원칙
+## 검증과 완료 기준
 
-### 1. 언어 태그 & 단어 단위 줄바꿈 (Language Tag & Word Wrap)
-* **원칙**: 모든 텍스트에 `ko-KR` 언어를 지정하고, 단어 중간 줄바꿈 속성을 끕니다. PowerPoint에서 "한글 단어 잘림 허용"을 꺼도 언어가 `en-US`이면 영어 기준 줄바꿈이 적용되어 한글 단어가 깨집니다.
-* **설정**: 텍스트 상자 `word_wrap = True`를 유지하면서 문단에 `eaLnBrk="0"`, `latinLnBrk="0"` 지정.
-* *CLI 스크립트(`fix_korean_pptx.py`)가 pPr이 없는 기본 문단까지 자동으로 신규 생성하여 주입합니다.*
+`--verify` 종료 코드:
 
-### 2. 동아시아 폰트(East Asian Font) 동기화
-* **원칙**: `font.name`만 지정하면 영문 폰트(`<a:latin>`)만 설정되어 한글이 **시스템 기본 폰트(맑은 고딕 등)로 강제 폴백**됩니다.
-* **설정**: `<a:latin>`과 `<a:ea>`를 동일한 폰트(예: Pretendard)로 반드시 쌍을 맞추어 지정합니다. 하이퍼링크 등이 있어도 스키마 규격 순서(`latin` → `ea` → `hlinkClick`)를 엄격 준수합니다.
+| 코드 | 의미 |
+|---|---|
+| 0 | 검사한 XML 범위에서 결함·상속 미확인 없음 |
+| 1 | XML/ZIP/옵션/입출력 오류 |
+| 2 | 명시적 서식 결함 발견 |
+| 3 | 결함은 없으나 상위 상속 확인 필요 |
 
-### 3. 서식 상속 (Formatting Inheritance: 마스터/문단 레벨 우선)
-* **증상**: 글자 크기·색상·폰트를 개별 run마다 하드코딩하면, 사용자가 PowerPoint에서 "테마 색상 일괄 변경"이나 슬라이드 마스터 서식 수정을 할 때 적용되지 않고 막힙니다.
-* **원칙**: 서식은 가능한 한 높은 수준에서 상속시킵니다: **슬라이드 마스터/레이아웃 > 문단(Paragraph) 레벨 > Run 레벨**.
-  * 공통 서식(폰트, 크기, 색상)은 문단 레벨(`paragraph.font.*` 또는 `<a:defRPr>`)이나 레이아웃의 placeholder 서식을 계승합니다.
-  * Run 레벨 하드코딩은 문단 내에서 부분적으로 다른 서식(예: 굵게 처리된 특정 키워드 하나)이 필요한 경우에만 예외(Override)로 한정합니다.
-  * **템플릿 작업 주의**: placeholder에 텍스트를 채울 때 `text_frame.text = "..."`로 덮어쓰면 기존 placeholder 서식이 완전히 소실되므로, 기존 문단의 서식을 유지하며 텍스트를 교체해야 합니다.
-* **도구별 상속 지정 방법**:
-  * `python-pptx`: `paragraph.font.size` / `paragraph.font.color.rgb`를 먼저 설정하고, run은 `run.text` 위주로 설정.
-  * `pptxgenjs`: 개별 `text` 배열마다 색상을 반복하지 말고, `addText`의 최상위 `options`에 공통 `color`/`fontFace`/`fontSize`를 지정한 뒤 예외 항목에만 개별 override 적용.
-  * 직접 XML: `<a:pPr>` 안의 `<a:defRPr>`에 기본 서식을 지정하고 개별 `<a:rPr>`에는 꼭 필요한 예외만 남김.
+일반 보정 실행의 0은 저장 성공을 의미하며 검증 완료가 아니다. 코드 3을 없애기 위해 불필요하게 폰트를 하드코딩하지 않는다. 해당 템플릿의 마스터·테마를 확인하고 판단을 기록한다.
 
-### 4. 네이티브 불릿 및 내어쓰기 (Hanging Indent)
-* **원칙**: 텍스트에 유니코드 기호(`•`, `-`)를 하드코딩하면 둘째 줄 들여쓰기가 깨집니다.
-* **설정**: PowerPoint 네이티브 불릿(`buChar`, `marL`, `indent`)을 사용합니다.
-* **주의**: ISO/IEC 29500-1 스키마 규격상 `<a:pPr>` 내부에서 `<a:buChar>`는 반드시 `<a:defRPr>` **앞에** 위치해야 파일 복구 경고가 발생하지 않습니다 (`set_native_bullet` 함수 사용).
+검증기는 문단과 같은 도형의 목록 스타일을 해석하고, 한국어 run/필드, 줄바꿈, 명시적 EA 토큰, 주요 폰트·불릿 요소 순서를 검사한다. 레이아웃/마스터/테마를 가로지르는 유효 폰트는 추정하지 않고 `unknown_*`로 보고한다. `-f`를 함께 주면 해당 폰트와의 일치도 확인한다. 임의 폰트의 글리프 지원, 전체 ISO 스키마, 화면 넘침, 단일 도형 여부까지 검증하지 않는다.
 
-### 5. 카드 및 도형 UI는 단일 도형으로 통합 (Single Shape)
-* **원칙**: 배경 도형 위에 별도의 투명 텍스트 상자를 얹으면 사용자가 수정할 때 배경과 글자가 분리됩니다.
-* **설정**: 사각형(`RECTANGLE`), 원형(`OVAL`), 둥근 사각형 등 단일 도형에 직접 텍스트를 넣고 여백과 정렬을 조정합니다 (`create_korean_card` / `create_korean_shape` 활용).
-  * 원형/타원형: `shape_type=MSO_SHAPE.OVAL` (자동 세로 중앙 정렬 `MIDDLE` 적용)
-  * 직사각형 카드: `shape_type=MSO_SHAPE.RECTANGLE` (세로 상단 `TOP` 및 문단별 독립 서식 적용)
-  * 글자색: 기본 도형 스타일(흰 글자·그림자)을 제거하고 테마 텍스트 색을 상속합니다. 어두운 배경이면 `text_color=RGBColor(...)`를 지정합니다.
-* **다중 도형 예외 기준**:
-  * 단순 서식 차이(예: 큰 제목 + 작은 본문)는 단일 도형의 여러 문단(`paragraphs`)으로 충분히 구현 가능하므로 단일 도형을 유지합니다.
-  * 단, **좌우 분할 배치, 상하 양끝 분할, 아이콘/버튼 칩 결합** 등 독립적인 2차원 공간 배치가 필요한 경우에만 도형을 분리한 뒤 그룹화(`GroupShape`)합니다.
+지원 범위는 Transitional PPTX/POTX의 슬라이드·마스터·레이아웃에 저장된 DrawingML 텍스트이며 표/그룹을 포함한다. 별도 차트·SmartArt·노트·임베디드 객체·프레젠테이션 기본 텍스트 스타일은 보정 대상이 아니다. CLI는 문자열 불릿 변환이나 카드 병합을 하지 않는다.
 
----
+완료 전:
+- 의도한 슬라이드/문단만 변경되었는지 확인한다.
+- 한국어 줄바꿈, 장문 넘침, 불릿 내어쓰기, 폰트 표시를 PowerPoint에서 확인한다.
+- 상속을 유지해야 하는 곳은 상위 서식을 바꾸어 하위가 따라오는지 확인한다.
+- 자동 검사 결과와 앱에서 확인하지 못한 항목을 구분해 보고한다.
 
-## 🛠️ 작업 유형별 권장 워크플로
+## 도구별 레퍼런스
 
-| 작업 유형 | 권장 워크플로 | 소요 시간 |
-|---|---|---|
-| **기존 슬라이드 수정 (1~2장)** | 1. `python-pptx` 등으로 평소처럼 텍스트/표 수정<br>2. `python <skill-path>/scripts/fix_korean_pptx.py deck.pptx --slide N` 실행 | **10~20초** |
-| **전체 덱 일괄 정리 (표/도형 포함)** | `python <skill-path>/scripts/fix_korean_pptx.py deck.pptx` 1회 실행 | **1~2초** |
-| **신규 슬라이드/도형 생성** | `scripts/korean_pptx.py`의 `create_korean_shape`, `apply_korean_formatting` 활용 | **30초** |
-| **서식 준수 여부 진단** | `python <skill-path>/scripts/fix_korean_pptx.py deck.pptx --verify` 실행 | **0.1초** |
-
----
-
-## ✅ 작업 완료 후 최종 점검 체크리스트 (QA)
-
-- [ ] 한글이 포함된 모든 문단/런에 `lang="ko-KR"` 및 단어 단위 줄바꿈(`eaLnBrk="0"`, `latinLnBrk="0"`)이 적용되었는가?
-- [ ] 영문 폰트(`latin`)와 동아시아 폰트(`ea`)가 동일하게 지정되어 한글 폰트 폴백(맑은 고딕 등)이 방지되었는가?
-- [ ] 폰트 크기·색상이 run마다 불필요하게 하드코딩되지 않고 문단/마스터 레벨에서 상속되는가?
-- [ ] 문자열 기호(`•`) 대신 네이티브 불릿(`buChar`, `marL`, `indent`)과 내어쓰기를 적용했는가?
-- [ ] 카드/원형 UI에서 배경과 텍스트가 분리되지 않고 단일 도형의 `text_frame`으로 통합되었는가? (복합 레이아웃 제외)
-
----
-
-## 🔍 상세 레퍼런스
-* **OpenXML 스키마 및 태그 규격**: [`references/openxml_reference.md`](references/openxml_reference.md)
-* **PptxGenJS (Node.js/브라우저)**: [`references/pptxgenjs.md`](references/pptxgenjs.md)
+- XML을 직접 편집할 때: [OpenXML 구조](references/openxml_reference.md)
+- PptxGenJS로 제작할 때: [PptxGenJS 가이드](references/pptxgenjs.md)
