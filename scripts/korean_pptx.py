@@ -184,6 +184,7 @@ def create_korean_card(
     shape_type=MSO_SHAPE.RECTANGLE,
     vertical_anchor=None,
     text_color=None,
+    corner_radius_pct=None,
 ):
     """
     배경 도형과 텍스트 프레임을 일체화한 단일 카드/도형(사각형, 원형, 둥근 사각형 등) 생성.
@@ -201,8 +202,22 @@ def create_korean_card(
     :param shape_type: MSO_SHAPE enum (기본값: RECTANGLE, 원형은 OVAL, 둥근 사각형은 ROUNDED_RECTANGLE 등)
     :param vertical_anchor: MSO_ANCHOR enum (미지정 시 OVAL은 MSO_ANCHOR.MIDDLE, 그 외는 MSO_ANCHOR.TOP 기본 적용)
     :param text_color: 기본 글자색 (RGBColor, 미지정 시 테마 텍스트 색 상속 / 어두운 배경이면 지정)
+    :param corner_radius_pct: ROUNDED_RECTANGLE 곡률 비율 (0.02~0.05 등, 기본 16.7%의 과도한 둥글기 방지)
     """
     shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+
+    # 둥근 모서리 사각형 곡률 미세 제어 (과도한 뭉툭함 방지: 모던 UI 2~4% 권장)
+    if shape_type == MSO_SHAPE.ROUNDED_RECTANGLE and corner_radius_pct is not None:
+        val = int(corner_radius_pct * 100000) if corner_radius_pct <= 1.0 else int(corner_radius_pct * 1000)
+        prst_geom = shape._element.spPr.prstGeom
+        avLst = prst_geom.get_or_add_avLst()
+        for child in list(avLst):
+            if child.attrib.get("name") == "adj":
+                avLst.remove(child)
+        gd = OxmlElement("a:gd")
+        gd.set("name", "adj")
+        gd.set("fmla", f"val {val}")
+        avLst.append(gd)
 
     # python-pptx 기본 도형 스타일(p:style)은 흰색 글자(fontRef lt1)와 그림자(effectRef)를 강제해
     # 밝은 배경 카드에서 글자가 보이지 않으므로 제거하고 테마 기본 서식을 상속받게 함

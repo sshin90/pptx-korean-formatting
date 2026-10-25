@@ -73,6 +73,47 @@ class TestKoreanPptxHelper(unittest.TestCase):
         self.assertEqual(badge.text_frame.vertical_anchor, MSO_ANCHOR.MIDDLE)
         self.assertEqual(badge.text_frame.margin_left, Inches(0.1))
 
+    def test_create_korean_card_corner_radius(self):
+        # 1. 소수점 비율 (0.03 = 3%)
+        card = create_korean_card(
+            self.slide, Inches(1), Inches(1), Inches(3), Inches(2),
+            shape_type=MSO_SHAPE.ROUNDED_RECTANGLE,
+            corner_radius_pct=0.03,
+        )
+        self.assertEqual(card.auto_shape_type, MSO_SHAPE.ROUNDED_RECTANGLE)
+        prst_geom = card._element.spPr.prstGeom
+        avLst = prst_geom.find(qualify(A_NS, "avLst"))
+        self.assertIsNotNone(avLst)
+        adj_gds = [gd for gd in avLst.findall(qualify(A_NS, "gd")) if gd.get("name") == "adj"]
+        self.assertEqual(len(adj_gds), 1)
+        self.assertEqual(adj_gds[0].get("fmla"), "val 3000")
+        self.assertAlmostEqual(card.adjustments[0], 0.03, places=4)
+
+        # 2. 정수 퍼센트 (4 = 4%)
+        card_pct = create_korean_card(
+            self.slide, Inches(1), Inches(1), Inches(3), Inches(2),
+            shape_type=MSO_SHAPE.ROUNDED_RECTANGLE,
+            corner_radius_pct=4,
+        )
+        prst_geom2 = card_pct._element.spPr.prstGeom
+        avLst2 = prst_geom2.find(qualify(A_NS, "avLst"))
+        adj_gds2 = [gd for gd in avLst2.findall(qualify(A_NS, "gd")) if gd.get("name") == "adj"]
+        self.assertEqual(len(adj_gds2), 1)
+        self.assertEqual(adj_gds2[0].get("fmla"), "val 4000")
+        self.assertAlmostEqual(card_pct.adjustments[0], 0.04, places=4)
+
+        # 3. None 지정 시 기본값 유지 (직접적인 adj 가이드 삽입 없음)
+        card_default = create_korean_card(
+            self.slide, Inches(1), Inches(1), Inches(3), Inches(2),
+            shape_type=MSO_SHAPE.ROUNDED_RECTANGLE,
+            corner_radius_pct=None,
+        )
+        prst_geom3 = card_default._element.spPr.prstGeom
+        avLst3 = prst_geom3.find(qualify(A_NS, "avLst"))
+        if avLst3 is not None:
+            adj_gds3 = [gd for gd in avLst3.findall(qualify(A_NS, "gd")) if gd.get("name") == "adj"]
+            self.assertEqual(len(adj_gds3), 0)
+
     def test_set_native_bullet(self):
         tb = self.slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
         p = tb.text_frame.paragraphs[0]
