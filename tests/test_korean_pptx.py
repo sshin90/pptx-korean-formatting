@@ -5,6 +5,7 @@ import unittest
 import os
 import sys
 import tempfile
+import zipfile
 import xml.etree.ElementTree as ET
 from pptx import Presentation
 from pptx.dml.color import RGBColor
@@ -24,16 +25,17 @@ from scripts.korean_pptx import (
     set_native_bullet,
     set_korean_font_and_lang,
     set_word_break_prevention,
-    apply_korean_formatting
+    apply_korean_formatting,
 )
 from scripts.fix_korean_pptx import (
     patch_xml_content,
+    patch_theme_xml,
     verify_xml_content,
     process_pptx,
     get_slide_file_map,
     resolve_ea_typeface,
     qualify,
-    A_NS
+    A_NS,
 )
 
 
@@ -53,7 +55,7 @@ class TestKoreanPptxHelper(unittest.TestCase):
     def test_create_korean_card_oval(self):
         oval = create_korean_card(
             self.slide, Inches(2), Inches(2), Inches(2), Inches(2),
-            shape_type=MSO_SHAPE.OVAL
+            shape_type=MSO_SHAPE.OVAL,
         )
         self.assertTrue(oval.has_text_frame)
         self.assertEqual(oval.auto_shape_type, MSO_SHAPE.OVAL)
@@ -64,7 +66,7 @@ class TestKoreanPptxHelper(unittest.TestCase):
             self.slide, Inches(1), Inches(1), Inches(2), Inches(0.5),
             shape_type=MSO_SHAPE.ROUNDED_RECTANGLE,
             vertical_anchor=MSO_ANCHOR.MIDDLE,
-            margin_inch=0.1
+            margin_inch=0.1,
         )
         self.assertTrue(badge.has_text_frame)
         self.assertEqual(badge.auto_shape_type, MSO_SHAPE.ROUNDED_RECTANGLE)
@@ -78,7 +80,7 @@ class TestKoreanPptxHelper(unittest.TestCase):
         set_native_bullet(p, char="➔")
 
         pPr = p._p.get_or_add_pPr()
-        tags = [c.tag.split('}')[-1] for c in pPr]
+        tags = [c.tag.split("}")[-1] for c in pPr]
         self.assertIn("buChar", tags)
         if "defRPr" in tags:
             self.assertLess(tags.index("buChar"), tags.index("defRPr"))
@@ -89,9 +91,9 @@ class TestKoreanPptxHelper(unittest.TestCase):
         p.text = "문단 레벨 서식 상속 테스트"
         set_korean_font_and_lang(p, "Pretendard")
 
-        defRPr = p._p.find('.//' + qualify(A_NS, 'defRPr'))
+        defRPr = p._p.find(".//" + qualify(A_NS, "defRPr"))
         self.assertIsNotNone(defRPr)
-        ea = defRPr.find(qualify(A_NS, 'ea'))
+        ea = defRPr.find(qualify(A_NS, "ea"))
         self.assertIsNotNone(ea)
         self.assertEqual(ea.get("typeface"), "Pretendard")
 
@@ -133,8 +135,8 @@ class TestFixKoreanPptxCli(unittest.TestCase):
         mod, new_xml, stats = patch_xml_content(xml_str.encode("utf-8"))
         self.assertTrue(mod)
         root = ET.fromstring(new_xml)
-        p = root.find('.//' + qualify(A_NS, 'p'))
-        pPr = p.find(qualify(A_NS, 'pPr'))
+        p = root.find(".//" + qualify(A_NS, "p"))
+        pPr = p.find(qualify(A_NS, "pPr"))
         self.assertIsNotNone(pPr)
         self.assertEqual(pPr.get("eaLnBrk"), "0")
         self.assertEqual(pPr.get("latinLnBrk"), "0")
@@ -158,13 +160,13 @@ class TestFixKoreanPptxCli(unittest.TestCase):
         mod, new_xml, stats = patch_xml_content(xml_str.encode("utf-8"))
         self.assertTrue(mod)
         root = ET.fromstring(new_xml)
-        rPr = root.find('.//' + qualify(A_NS, 'rPr'))
-        tags = [c.tag.split('}')[-1] for c in rPr]
-        self.assertEqual(tags, ['latin', 'ea', 'hlinkClick'])
+        rPr = root.find(".//" + qualify(A_NS, "rPr"))
+        tags = [c.tag.split("}")[-1] for c in rPr]
+        self.assertEqual(tags, ["latin", "ea", "hlinkClick"])
 
     def test_full_pipeline_process_pptx(self):
         temp_dir = tempfile.mkdtemp()
-        pptx_path = os.path.join(temp_dir, 'pipeline_test.pptx')
+        pptx_path = os.path.join(temp_dir, "pipeline_test.pptx")
 
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -186,7 +188,7 @@ class TestFixKoreanPptxCli(unittest.TestCase):
 
 
 class TestRegressions(unittest.TestCase):
-    """검토에서 재현된 결함 1~6번 회귀 테스트"""
+    """검토에서 재현된 결함 회귀 테스트"""
 
     def _make_pptx(self):
         temp_dir = tempfile.mkdtemp()
@@ -222,7 +224,7 @@ class TestRegressions(unittest.TestCase):
         self.assertIn('<a:pPr eaLnBrk="0" latinLnBrk="0"/>', out)
         self.assertNotIn("ns0", out)
 
-    # 3. 카드 기본 스타일이 흰색 글자/그림자를 강제하지 않아야 함
+    # 3. 카드 기본 스타일이 흰색 글자/그림자를 강제하지 않고 다단 레벨 색상을 상속해야 함
     def test_card_removes_default_white_text_style(self):
         prs = Presentation()
         slide = prs.slides.add_slide(prs.slide_layouts[6])
@@ -231,13 +233,14 @@ class TestRegressions(unittest.TestCase):
 
         dark = create_korean_card(
             slide, Inches(1), Inches(1), Inches(3), Inches(2),
-            bg_color=RGBColor(0x11, 0x18, 0x27), text_color=RGBColor(0xFF, 0xFF, 0xFF)
+            bg_color=RGBColor(0x11, 0x18, 0x27), text_color=RGBColor(0xFF, 0xFF, 0xFF),
         )
-        clr = dark.text_frame._txBody.find(
-            "./a:lstStyle/a:lvl1pPr/a:defRPr/a:solidFill/a:srgbClr".replace("a:", "{%s}" % A_NS)
-        )
-        self.assertIsNotNone(clr)
-        self.assertEqual(clr.get("val"), "FFFFFF")
+        for lvl in ("lvl1pPr", "lvl2pPr", "lvl9pPr"):
+            clr = dark.text_frame._txBody.find(
+                f"./a:lstStyle/a:{lvl}/a:defRPr/a:solidFill/a:srgbClr".replace("a:", "{%s}" % A_NS)
+            )
+            self.assertIsNotNone(clr)
+            self.assertEqual(clr.get("val"), "FFFFFF")
 
     # 4. 기존 buClr/buFont/tabLst가 있어도 스키마 순서와 choice 단일성 유지
     def test_set_native_bullet_schema_order_with_existing_elements(self):
@@ -254,11 +257,11 @@ class TestRegressions(unittest.TestCase):
             '<a:tabLst/>',
             '<a:defRPr/>',
         ]:
-            pPr.append(parse_xml('<x %s>%s</x>' % (nsdecls("a"), frag))[0])
+            pPr.append(parse_xml("<x %s>%s</x>" % (nsdecls("a"), frag))[0])
 
         set_native_bullet(p)
 
-        tags = [c.tag.split('}')[-1] for c in pPr]
+        tags = [c.tag.split("}")[-1] for c in pPr]
         self.assertEqual(tags, ["spcBef", "buClrTx", "buSzTx", "buChar", "tabLst", "defRPr"])
 
     # 5. latin 테마 참조/한글 미지원 폰트를 ea에 그대로 복사하지 않아야 함
@@ -270,6 +273,7 @@ class TestRegressions(unittest.TestCase):
         self.assertEqual(resolve_ea_typeface("Noto Sans KR", "Pretendard"), "Noto Sans KR")
         self.assertEqual(resolve_ea_typeface("맑은 고딕", "Pretendard"), "맑은 고딕")
         self.assertEqual(resolve_ea_typeface("NanumGothic", "Pretendard"), "NanumGothic")
+        self.assertEqual(resolve_ea_typeface("맑은 고딕", "Pretendard", force_font=True), "Pretendard")
 
     def test_patch_maps_theme_font_and_fixes_bad_ea(self):
         xml_str = """<a:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
@@ -295,6 +299,66 @@ class TestRegressions(unittest.TestCase):
             self.assertIsNotNone(pPr)
             self.assertEqual(pPr.get("eaLnBrk"), "0")
 
+    # 7. 문단 레벨(defRPr) 서식 상속이 verify를 통과하고 patch 시 하위 런으로 계승되어야 함
+    def test_paragraph_level_inheritance_verify_and_patch(self):
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        tb = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(4), Inches(1))
+        p = tb.text_frame.paragraphs[0]
+        p.text = "문단 레벨 나눔고딕 상속"
+        set_word_break_prevention(p)
+        set_korean_font_and_lang(p, "NanumGothic")
 
-if __name__ == '__main__':
+        xml_bytes = ET.tostring(slide._element)
+        issues = verify_xml_content(xml_bytes)
+        self.assertEqual(sum(issues.values()), 0)
+
+        # force_font=False일 때 patch_xml_content를 실행해도 defRPr의 NanumGothic을 계승해야 함
+        _, patched_xml, _ = patch_xml_content(xml_bytes, default_font="Pretendard", force_font=False)
+        root = ET.fromstring(patched_xml)
+        for ea in root.iter(qualify(A_NS, "ea")):
+            self.assertEqual(ea.get("typeface"), "NanumGothic")
+
+    # 8. 기존 잘못된 <a:ea typeface="Calibri"/> 교정 및 <a:latin>/<a:ea> 쌍 동기화
+    def test_patch_fixes_non_korean_ea_and_syncs_latin(self):
+        xml_str = """<a:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+<a:p><a:r><a:rPr><a:latin typeface="Calibri"/><a:ea typeface="Calibri"/></a:rPr><a:t>2026년 AI 성장</a:t></a:r></a:p>
+<a:p><a:r><a:rPr lang="en-US"/><a:t>폰트 미지정 런</a:t></a:r></a:p>
+</a:txBody>"""
+        _, new_xml, _ = patch_xml_content(xml_str.encode("utf-8"), default_font="Pretendard")
+        root = ET.fromstring(new_xml)
+        for rPr in root.iter(qualify(A_NS, "rPr")):
+            self.assertEqual(rPr.find(qualify(A_NS, "latin")).get("typeface"), "Pretendard")
+            self.assertEqual(rPr.find(qualify(A_NS, "ea")).get("typeface"), "Pretendard")
+
+    # 9. -f 옵션(force_font) 사용 시 테마(theme1.xml) 및 마스터(txStyles)까지 일괄 교체
+    def test_force_font_updates_theme_and_master_styles(self):
+        path = self._make_pptx()
+        code = process_pptx(path, default_font="NanumGothic", force_font=True)
+        self.assertEqual(code, 0)
+
+        with zipfile.ZipFile(path, "r") as zin:
+            # 1) theme1.xml 내 majorFont/minorFont의 latin, ea, script="Hang"이 모두 NanumGothic인지 검증
+            theme_root = ET.fromstring(zin.read("ppt/theme/theme1.xml"))
+            font_scheme = theme_root.find(f".//{qualify(A_NS, 'fontScheme')}")
+            for group_tag in ("majorFont", "minorFont"):
+                group = font_scheme.find(qualify(A_NS, group_tag))
+                self.assertEqual(group.find(qualify(A_NS, "latin")).get("typeface"), "NanumGothic")
+                self.assertEqual(group.find(qualify(A_NS, "ea")).get("typeface"), "NanumGothic")
+                hang_fonts = [
+                    f.get("typeface")
+                    for f in group.findall(qualify(A_NS, "font"))
+                    if f.get("script") == "Hang"
+                ]
+                self.assertEqual(hang_fonts, ["NanumGothic"])
+
+            # 2) slideMaster1.xml의 txStyles 내 lvl1pPr~lvl9pPr에서 eaLnBrk="1"이 모두 "0"으로 변경되었는지 검증
+            master_root = ET.fromstring(zin.read("ppt/slideMasters/slideMaster1.xml"))
+            for i in range(1, 10):
+                for lvl_elm in master_root.iter(qualify(A_NS, f"lvl{i}pPr")):
+                    self.assertEqual(lvl_elm.get("eaLnBrk"), "0")
+                    self.assertEqual(lvl_elm.get("latinLnBrk"), "0")
+
+
+if __name__ == "__main__":
     unittest.main()

@@ -15,16 +15,43 @@ from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 
 A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
-POST_EA_TAGS = [f"{{{A_NS}}}{t}" for t in ["cs", "sym", "hlinkClick", "hlinkMouseOver", "rtl", "extLst"]]
+POST_LATIN_TAGS = [
+    f"{{{A_NS}}}{t}"
+    for t in ["ea", "cs", "sym", "hlinkClick", "hlinkMouseOver", "rtl", "extLst"]
+]
+POST_EA_TAGS = [
+    f"{{{A_NS}}}{t}"
+    for t in ["cs", "sym", "hlinkClick", "hlinkMouseOver", "rtl", "extLst"]
+]
 
 # pPr 내 불릿 관련 요소 전체 (색상/크기/폰트/종류 각 그룹은 하나만 존재 가능한 choice)
 BULLET_TAGS = [
     f"{{{A_NS}}}{t}"
-    for t in ["buClrTx", "buClr", "buSzTx", "buSzPct", "buSzPts", "buFontTx", "buFont",
-              "buNone", "buAutoNum", "buChar", "buBlip"]
+    for t in [
+        "buClrTx", "buClr", "buSzTx", "buSzPct", "buSzPts", "buFontTx", "buFont",
+        "buNone", "buAutoNum", "buChar", "buBlip",
+    ]
 ]
 # 스키마상 불릿 요소 뒤에 와야 하는 pPr 자식 요소
 POST_BULLET_TAGS = [f"{{{A_NS}}}{t}" for t in ["tabLst", "defRPr", "extLst"]]
+
+
+def _insert_latin_to_prop(prop_elm, font_name):
+    """prop_elm (rPr 또는 defRPr) 내부에 OpenXML 스키마 순서를 준수하여 <a:latin> 요소를 삽입합니다."""
+    latin = prop_elm.find(f"{{{A_NS}}}latin")
+    if latin is not None:
+        latin.set("typeface", font_name)
+        return
+
+    latin_elem = OxmlElement("a:latin")
+    latin_elem.set("typeface", font_name)
+
+    for i, child in enumerate(prop_elm):
+        if child.tag in POST_LATIN_TAGS:
+            prop_elm.insert(i, latin_elem)
+            return
+
+    prop_elm.append(latin_elem)
 
 
 def _insert_ea_to_prop(prop_elm, font_name):
@@ -53,29 +80,50 @@ def _insert_ea_to_prop(prop_elm, font_name):
 
 def set_korean_font_and_lang(target, font_name="Pretendard"):
     """
-    Run 또는 Paragraph 객체에 언어(ko-KR)와 폰트(latin + ea: East Asian)를 동시 설정.
+    Run, Paragraph 또는 Font 객체에 언어(ko-KR)와 폰트(latin + ea: East Asian)를 동시 설정.
     한글이 맑은 고딕 등 시스템 기본 폰트로 강제 폴백되는 현상을 방지합니다.
     """
-    try:
-        target.font.language_id = MSO_LANGUAGE_ID.KOREAN
-    except Exception:
-        pass
+    font_obj = target if hasattr(target, "language_id") else getattr(target, "font", None)
+    if font_obj is not None:
+        try:
+            font_obj.language_id = MSO_LANGUAGE_ID.KOREAN
+        except Exception:
+            pass
+        font_obj.name = font_name
 
-    target.font.name = font_name
-
-    parent_elm = getattr(target, "_r", None)
-    if parent_elm is None:
-        parent_elm = getattr(target, "_p", None)
-    if parent_elm is None:
+    # 1. Run 객체인 경우
+    if hasattr(target, "_r"):
+        prop_elm = target._r.get_or_add_rPr()
+        _insert_latin_to_prop(prop_elm, font_name)
+        _insert_ea_to_prop(prop_elm, font_name)
         return
 
-    prop_elm = (
-        parent_elm.get_or_add_rPr()
-        if hasattr(parent_elm, "get_or_add_rPr")
-        else parent_elm.get_or_add_pPr().get_or_add_defRPr()
-    )
+    # 2. Paragraph 객체인 경우 (문단 레벨 defRPr 상속 설정 + 기존 런 언어 태그 동기화)
+    if hasattr(target, "_p"):
+        p_elm = target._p
+        prop_elm = p_elm.get_or_add_pPr().get_or_add_defRPr()
+        prop_elm.set("lang", "ko-KR")
+        _insert_latin_to_prop(prop_elm, font_name)
+        _insert_ea_to_prop(prop_elm, font_name)
 
-    _insert_ea_to_prop(prop_elm, font_name)
+        # 문단 내 이미 생성된 런(예: p.text = "..." 직후)의 언어 태그를 ko-KR로 동기화
+        for r in getattr(target, "runs", ()):
+            try:
+                r.font.language_id = MSO_LANGUAGE_ID.KOREAN
+            except Exception:
+                pass
+
+        end_para = p_elm.find(f"{{{A_NS}}}endParaRPr")
+        if end_para is not None:
+            end_para.set("lang", "ko-KR")
+        return
+
+    # 3. Font 객체를 직접 전달한 경우 (target._element가 rPr 또는 defRPr)
+    prop_elm = getattr(target, "_element", None)
+    if prop_elm is not None:
+        prop_elm.set("lang", "ko-KR")
+        _insert_latin_to_prop(prop_elm, font_name)
+        _insert_ea_to_prop(prop_elm, font_name)
 
 
 def set_word_break_prevention(paragraph):
@@ -91,7 +139,7 @@ def set_word_break_prevention(paragraph):
 def set_native_bullet(paragraph, char="•", mar_l=Inches(0.3), indent=-Inches(0.2)):
     """
     OpenXML ISO/IEC 29500-1 스키마 순서를 엄격 준수하여 네이티브 불릿을 적용.
-    buChar가 defRPr보다 앞에 오도록 보장하여 PowerPoint 파일 복구 경고를 방지합니다.
+    buChar가 tabLst/defRPr/extLst보다 앞에 오도록 보장하여 PowerPoint 파일 복구 경고를 방지합니다.
     """
     pPr = paragraph._p.get_or_add_pPr()
     pPr.set("marL", str(int(mar_l)))
@@ -138,10 +186,10 @@ def create_korean_card(
     사용자 드래그 시 분리되지 않고 일체형으로 편집할 수 있습니다.
 
     :param slide: 슬라이드 객체
-    :param left: 가로 위치 (Pt 또는 Inches)
-    :param top: 세로 위치 (Pt 또는 Inches)
-    :param width: 너비 (Pt 또는 Inches)
-    :param height: 높이 (Pt 또는 Inches)
+    :param left: 가로 위치 (Inches 또는 Pt)
+    :param top: 세로 위치 (Inches 또는 Pt)
+    :param width: 너비 (Inches 또는 Pt)
+    :param height: 높이 (Inches 또는 Pt)
     :param bg_color: 배경 색상 (RGBColor 또는 None=투명)
     :param border_color: 테두리 색상 (RGBColor 또는 None=없음)
     :param line_width_pt: 테두리 두께 (Pt, 기본값 1pt)
@@ -186,12 +234,25 @@ def create_korean_card(
         tf.margin_bottom = Inches(margin_inch)
 
     if text_color is not None:
-        # run마다 하드코딩하지 않고 도형의 목록 스타일(lstStyle)에서 상속
+        # run마다 하드코딩하지 않고 도형의 목록 스타일(lstStyle)에서 1~9단계 모두 상속
         lst_style = tf._txBody.find(qn("a:lstStyle"))
-        lst_style.append(parse_xml(
-            f'<a:lvl1pPr {nsdecls("a")}><a:defRPr><a:solidFill>'
-            f'<a:srgbClr val="{text_color}"/></a:solidFill></a:defRPr></a:lvl1pPr>'
-        ))
+        if lst_style is not None:
+            for lvl in range(1, 10):
+                lvl_tag = f"lvl{lvl}pPr"
+                existing = lst_style.find(qn(f"a:{lvl_tag}"))
+                if existing is not None:
+                    lst_style.remove(existing)
+                lst_style.append(
+                    parse_xml(
+                        f'<a:{lvl_tag} {nsdecls("a")} eaLnBrk="0" latinLnBrk="0">'
+                        f'<a:defRPr lang="ko-KR"><a:solidFill>'
+                        f'<a:srgbClr val="{text_color}"/></a:solidFill></a:defRPr>'
+                        f'</a:{lvl_tag}>'
+                    )
+                )
+
+    if tf.paragraphs:
+        set_word_break_prevention(tf.paragraphs[0])
 
     return shape
 
@@ -265,5 +326,8 @@ def apply_korean_formatting(target_obj, font_name="Pretendard"):
             if p.runs:
                 for r in p.runs:
                     set_korean_font_and_lang(r, font_name=font_name)
+                end_para = p._p.find(f"{{{A_NS}}}endParaRPr")
+                if end_para is not None:
+                    end_para.set("lang", "ko-KR")
             else:
                 set_korean_font_and_lang(p, font_name=font_name)

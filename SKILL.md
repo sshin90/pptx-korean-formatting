@@ -1,7 +1,7 @@
 ---
 name: pptx-korean-formatting
 description: "Supplementary Korean-language PowerPoint formatting rules and fast CLI tools. Use whenever a .pptx, .potx, or slide contains Korean text. Enforces ko-KR language metadata, word-boundary wrapping (eaLnBrk=0), East Asian fonts, formatting inheritance (master/paragraph > run), native hanging bullets, and single-shape cards. Includes an instant one-click CLI fixer."
-license: Personal use
+license: CC0-1.0
 metadata:
   compatibility: "Works with python-pptx, pure OpenXML, or any PowerPoint generator."
 ---
@@ -24,14 +24,14 @@ python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx
 # 특정 슬라이드만 고속 보정 (프레젠테이션 표시 순서 1-based 매핑)
 python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx --slide 2
 
-# 특정 폰트로 지정 보정
+# 특정 폰트로 지정 보정 (슬라이드/마스터 및 테마 폰트까지 일괄 교체)
 python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx -f "Pretendard"
 
-# 서식 누락 여부 정밀 진단
+# 서식 누락 여부 정밀 진단 (문단 레벨 상속 포함 검증)
 python <skill-path>/scripts/fix_korean_pptx.py presentation.pptx --verify
 ```
 
-> **장점**: 에이전트가 긴 헬퍼 함수를 매번 만들거나 복잡한 XML을 파싱할 필요가 없어 **작업 시간이 80% 이상 단축**되며, 마스터/레이아웃/표/그룹도형/하이퍼링크 스키마 규격까지 100% 자동 준수됩니다.
+> **장점**: 에이전트가 긴 헬퍼 함수를 매번 만들거나 복잡한 XML을 파싱할 필요가 없어 **작업 시간이 80% 이상 단축**되며, 마스터(`txStyles`)/레이아웃/테마(`theme1.xml`)/표/그룹도형/하이퍼링크 스키마 규격까지 100% 자동 준수됩니다.
 
 ### 2. 파이썬(`python-pptx`) 신규 생성 시 모듈 임포트
 신규 슬라이드를 직접 생성할 때는 스킬에 내장된 헬퍼 모듈을 임포트하여 사용합니다.
