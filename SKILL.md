@@ -37,6 +37,9 @@ python "<skill-path>/scripts/fix_korean_pptx.py" output.pptx --verify
 # 지정 폰트까지 확인
 python "<skill-path>/scripts/fix_korean_pptx.py" output.pptx --verify -f "Pretendard"
 
+# 가짜 표·분할 불릿 구조 점검 (0: 정상, 2: 구조 의심 요소 발견)
+python "<skill-path>/scripts/lint_pptx_structure.py" output.pptx
+
 # 사용자가 전체 문서의 테마/외국어/공유 스타일 통일을 원할 때
 python "<skill-path>/scripts/fix_korean_pptx.py" input.pptx -f "Pretendard" --all-text --update-theme -o output.pptx
 ```
@@ -63,13 +66,17 @@ CLI 기본 모드는 없는 run 폰트를 생성하지 않는다. `-f`는 문단
 
 `text_frame.text = "..."`는 로컬 문단/run 내용을 교체해 그 서식을 잃을 수 있다. placeholder의 레이아웃·마스터 관계까지 사라지는 것은 아니다. 부분 수정에는 기존 run의 텍스트 교체 등 보존 가능한 방법을 선택한다.
 
-### 3. 네이티브 불릿
+### 3. 네이티브 불릿 및 단일 텍스트 상자 원칙
 
 문자열 앞에 `•`를 붙이기보다 네이티브 불릿과 `marL`/`indent`를 사용한다. `a:pPr` 안에서 불릿 요소는 `tabLst`/`defRPr`보다 앞에 있어야 하며, 불릿 종류 choice는 하나만 둔다. Python에서는 `set_native_bullet()`을 사용한다.
 
-### 4. 편집 가능한 단일 도형
+- **분할 텍스트 상자 금지**: 연속된 불릿 목록이나 같은 영역의 본문은 줄마다 별도의 텍스트 상자(`add_textbox`)로 쪼개지 않는다. 반드시 **하나의 텍스트 상자(또는 단일 도형 `text_frame`) 안에 `add_paragraph()`로 여러 문단**을 추가하고 문단 간격(`space_after`)으로 행간을 조절한다.
+
+### 4. 편집 가능한 단일 도형 및 네이티브 표 필수 사용
 
 단순 카드·원형·배지는 도형 자체의 텍스트 프레임을 사용한다. 제목/본문은 문단별 서식으로 구분한다. 좌우 분할, 상하 양끝 배치, 독립 아이콘·버튼처럼 별도 위치 제어가 필요하면 여러 도형을 그룹화한다. 이는 편집성 기본 원칙이며 사용자의 배치 요구를 제한하지 않는다.
+
+- **네이티브 표(`add_table`) 필수 사용 (가짜 표 금지)**: 모든 표는 반드시 PowerPoint 네이티브 표(`slide.shapes.add_table()`)로 생성한다. 행마다 배경 사각형을 깔고 그 위에 각 열의 개별 텍스트 상자를 좌표로 겹쳐 표처럼 보이게 그리는 방식은 금지한다. 병합이 필요한 행은 `cell.merge()`로 처리한다.
 
 ### 5. 슬라이드 마스터와 플레이스홀더 우선 상속 (Master & Placeholder Inheritance)
 
@@ -106,6 +113,15 @@ CLI 기본 모드는 없는 run 폰트를 생성하지 않는다. `-f`는 문단
 - **곡률 미세 제어**: 라운드 카드를 제작할 때는 모던 UI 기준(반경 4~8px 수준, `adj` 2~4%)으로 미세 조정(`corner_radius_pct=0.03`)하여 단정함을 유지한다.
 - **스타일 일관성**: 플랫하고 정갈한 비즈니스 문서에는 각진 직사각형(`MSO_SHAPE.RECTANGLE`)을, 부드러운 서비스 소개에는 제어된 둥근 모서리를 템플릿 전반에 일관되게 적용한다.
 
+### 8. 한국어 문장 종결 및 마침표 규칙 (Korean Period & Punctuation)
+
+한글 맞춤법 문장 부호 규정 및 공공·비즈니스 보고서 기준에 따라 문장 종결 형태별로 마침표(`.`) 사용을 구분한다.
+
+- **완결형 문장 → 마침표 O**: `~한다.`, `~입니다.` 등 서술어로 완결되는 문장에는 마침표를 찍는다.
+- **서술성 명사형 어미 `-(으)ㅁ` 종결 → 마침표 O**: `~함.`, `~임.`, `~됨.`, `~있음.`, `~없음.`, `~상황임.` 등 서술 기능을 가진 개조식 종결은 문장에 준하므로 마침표를 찍는다.
+- **단순 명사·명사구 종결 → 마침표 X**: `거점 확보`, `사전 과제`, 슬라이드 제목·소제목·카드 헤더·도표 라벨 등 명사나 명사구로 끝나는 항목에는 마침표를 찍지 않는다. (`포함`, `경험`, `책임`, `지침`, `예정` 등 일반 명사에도 마침표를 붙이지 않는다.)
+- **일관성 유지**: 같은 불릿 목록이나 표의 동일 열 안에서는 가급적 종결 형태를 통일한다.
+
 ## 마스터 템플릿 기반 슬라이드 생성 절차 (Workflow)
 
 신규 프레젠테이션을 제작하거나 기존 템플릿을 기반으로 개편할 때 다음 단계를 준수한다.
@@ -114,7 +130,7 @@ CLI 기본 모드는 없는 run 폰트를 생성하지 않는다. `-f`는 문단
 2. **역할 기반 레이아웃 선택**: 슬라이드의 목적에 맞는 레이아웃을 선택하여 `prs.slides.add_slide(layout)`을 호출한다.
 3. **플레이스홀더 주입**: 슬라이드의 `placeholders`를 순회하며 제목/부제/섹션명 텍스트를 채운다.
 4. **정보 관계 기반 본문 배치**: 정보의 성격(단일 강조, 프로세스, 비교, 전면 이미지, 구조화 카드 등)에 맞춰 캔버스를 도화지처럼 자유롭게 설계·배치한다.
-5. **한국어 서식 보정 및 검증**: `apply_korean_formatting()` 또는 CLI 도구(`fix_korean_pptx.py -f "폰트명" --verify`)를 통해 폰트 일치, 한국어 줄바꿈, 상속 결함 유무를 최종 확인한다.
+5. **한국어 서식·구조 보정 및 검증**: `apply_korean_formatting()` 또는 CLI 도구(`fix_korean_pptx.py -f "폰트명" --verify`)를 통해 폰트 일치, 한국어 줄바꿈, 상속 결함 유무를 확인하고, **`lint_pptx_structure.py`를 실행해 가짜 표와 분할된 불릿 상자가 0건인지 최종 검증한다.**
 
 ## Python 헬퍼
 
@@ -123,6 +139,7 @@ CLI 기본 모드는 없는 run 폰트를 생성하지 않는다. `-f`는 문단
 ```python
 import sys
 sys.path.insert(0, "<skill-path>")
+from pptx.enum.shapes import MSO_SHAPE
 from scripts.korean_pptx import (
     apply_korean_formatting, set_korean_font_and_lang,
     set_word_break_prevention, set_native_bullet,

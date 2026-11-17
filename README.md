@@ -1,13 +1,13 @@
 # pptx-korean-formatting
 
-한국어 PowerPoint의 언어·줄바꿈·EA 폰트·서식 상속·네이티브 불릿·단일 도형 카드 제작을 보완하는 Agent Skill입니다.
+한국어 PowerPoint의 언어·줄바꿈·EA 폰트·서식 상속·네이티브 불릿·단일 도형 카드·네이티브 표·마스터 기반 레이아웃 설계를 다루는 Agent Skill입니다.
 
-기존 템플릿을 위한 기본 모드는 **폰트와 테마 보존**입니다. 단순 누락 보정, 폰트 통일, 공용 테마 변경을 구분합니다. 세부 제작 지침은 [SKILL.md](SKILL.md)를 참고하세요.
+기존 템플릿을 위한 기본 모드는 **폰트와 테마 보존**입니다. 단순 누락 보정, 폰트 통일, 공용 테마 변경, 구조 린트(가짜 표·분할 불릿 탐지)를 구분합니다. 세부 제작 지침(마스터·플레이스홀더 상속, 열린 캔버스 배치, 곡률 제어, 한국어 문장 종결 규칙 등)은 [SKILL.md](SKILL.md)를 참고하세요.
 
 ## 요구 환경
 
-- Python 3.10 이상, CLI는 `lxml` 필요
-- 생성 헬퍼와 테스트는 `python-pptx` 필요
+- Python 3.10 이상, 서식 보정 CLI(`fix_korean_pptx.py`)는 `lxml` 필요
+- 생성 헬퍼(`korean_pptx.py`), 구조 린터(`lint_pptx_structure.py`), 테스트는 `python-pptx` 필요
 - 검증 환경: Python 3.12, python-pptx 1.0.2, lxml 6.1.1, PptxGenJS 4.0.1
 - Transitional `.pptx`/`.potx`; 폰트는 사용 환경에 별도 설치
 
@@ -18,6 +18,7 @@ python scripts/fix_korean_pptx.py input.pptx -o output.pptx
 python scripts/fix_korean_pptx.py input.pptx --slide 2 -f "Pretendard" -o output.pptx
 python scripts/fix_korean_pptx.py output.pptx --verify
 python scripts/fix_korean_pptx.py output.pptx --verify -f "Pretendard"
+python scripts/lint_pptx_structure.py output.pptx
 ```
 
 - `-o` 생략: 원본 교체. XML 오류 또는 저장 실패 시 원본/기존 출력 보존.
@@ -26,6 +27,7 @@ python scripts/fix_korean_pptx.py output.pptx --verify -f "Pretendard"
 - `--no-masters`: 마스터·레이아웃 제외.
 - `--all-text`: 외국어·숫자 필드·빈 문단·공유 목록 스타일도 한국어 정책으로 통일. 심볼 폰트가 직접 지정된 run은 제외.
 - `--update-theme`: `-f`와 함께 공용 테마 폰트까지 변경. `--slide`/`--no-masters`와 병용 불가.
+- `lint_pptx_structure.py`: 가짜 표(배경 사각형 위에 개별 텍스트 상자를 나란히 배치한 구조)와 분할 불릿(동일 X좌표·너비로 분리된 연속 불릿 상자) 의심 요소를 검사합니다.
 
 전체 문서 통일이 의도된 경우:
 
@@ -37,12 +39,17 @@ python scripts/fix_korean_pptx.py input.pptx -f "Pretendard" --all-text --update
 
 ```python
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.util import Inches
 from scripts.korean_pptx import create_korean_card, apply_korean_formatting
 
 prs = Presentation()
 slide = prs.slides.add_slide(prs.slide_layouts[6])
-card = create_korean_card(slide, Inches(1), Inches(1), Inches(5), Inches(3))
+card = create_korean_card(
+    slide, Inches(1), Inches(1), Inches(5), Inches(3),
+    shape_type=MSO_SHAPE.ROUNDED_RECTANGLE,
+    corner_radius_pct=0.03,
+)
 card.text_frame.text = "한국어 카드 본문"
 apply_korean_formatting(prs, font_name="Pretendard")
 prs.save("output.pptx")
@@ -57,7 +64,7 @@ prs.save("output.pptx")
 python -X utf8 -B -m unittest discover -s tests -v
 ```
 
-`--verify`는 읽기 전용이며, 0=검사 범위 정상, 1=처리 오류, 2=서식 결함, 3=상속 미확인입니다. 보정 실행의 0은 저장 성공만 뜻합니다.
+`fix_korean_pptx.py --verify`는 읽기 전용이며, `0`=검사 범위 정상, `1`=처리 오류, `2`=서식 결함, `3`=상속 미확인입니다. 보정 실행의 `0`은 저장 성공만 뜻합니다. `lint_pptx_structure.py`는 `0`=구조 결함 없음, `2`=가짜 표 또는 분할 불릿 의심 요소 발견을 반환합니다.
 
 문단/도형 목록 스타일까지만 상속을 해석합니다. 상위 마스터·테마의 유효 폰트는 미확인으로 보고하며, 폰트 설치·글리프·전체 스키마·실제 화면은 별도 확인합니다. 차트·SmartArt·노트 등 별도 파트는 보정하지 않습니다. 도구는 문자열 불릿 변환이나 여러 도형의 카드 병합을 하지 않습니다.
 
